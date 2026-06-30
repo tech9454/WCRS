@@ -1,0 +1,58 @@
+{
+  "manifest_version": 3,
+  "name": "WebCam Records Searcher",
+  "version": "3.4",
+  "description": "Automatic search for stream recordings with a cascade of search engines.",
+  "permissions": ["storage", "activeTab", "tabs"],
+  "host_permissions": [
+    "*://*.duckduckgo.com/*",
+    "*://*.yandex.ru/*",
+    "*://*.yandex.com/*",
+    "*://*.google.com/*",
+    "*://*.google.ru/*",
+    "*://*.rambler.ru/*",
+    "*://*.mail.ru/*",
+    "*://*.mradx.net/*",
+    "*://*.bing.com/*",
+    "*://*.bongacams.com/*",
+    "*://*.bonga11.com/*",
+    "*://*.bonga12.com/*",
+    "*://*.bonga13.com/*",
+    "*://*.bonga14.com/*",
+    "*://*.bonga15.com/*",
+    "*://*.bonga16.com/*",
+    "*://*.bonga17.com/*",
+    "*://*.chaturbate.com/*",
+    "*://*.stripchat.com/*",
+    "*://*.stripchat.webcam/*",
+    "*://*.livejasmin.com/*",
+    "*://*.camsoda.com/*",
+    "*://*.myfreecams.com/*",
+    "*://*.streamate.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "css": ["widget.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "options_page": "options.html",
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

@@ -1,0 +1,250 @@
+#stream-archive-finder-widget {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 999999;
+  font-family: Arial, sans-serif;
+}
+
+.saf-toggle {
+  width: 60px;
+  height: 60px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+  transition: transform 0.2s, box-shadow 0.2s;
+  position: relative;
+}
+
+.saf-toggle:hover {
+  transform: scale(1.1);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+}
+
+.saf-icon {
+  font-size: 28px;
+}
+
+.saf-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  background: #ff4757;
+  color: white;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: bold;
+  border: 2px solid white;
+}
+
+.saf-badge.saf-found {
+  background: #2ed573;
+  animation: saf-pulse 2s infinite;
+}
+
+@keyframes saf-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+}
+
+.saf-panel {
+  position: absolute;
+  bottom: 70px;
+  right: 0;
+  width: 350px;
+  max-height: 500px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.3);
+  display: none;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.saf-panel.saf-open {
+  display: flex;
+}
+
+.saf-header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 15px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.saf-header h3 {
+    margin: 0;
+    font-size: 15px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 280px;
+}
+
+.saf-close {
+  background: none;
+  border: none;
+  color: white;
+  font-size: 24px;
+  cursor: pointer;
+  padding: 0;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.saf-controls {
+  padding: 10px 15px;
+  background: #f8f9fa;
+  border-bottom: 1px solid #e9ecef;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.saf-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  color: #333;
+}
+
+.saf-checkbox-label input[type="checkbox"] {
+  cursor: pointer;
+}
+
+.saf-search-btn {
+  margin-left: auto;
+  padding: 6px 12px;
+  background: #667eea;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.saf-search-btn:hover {
+  background: #5568d3;
+}
+
+.saf-content {
+  padding: 15px;
+  overflow-y: auto;
+  max-height: 400px;
+}
+
+.saf-status {
+  text-align: center;
+  color: #666;
+  padding: 20px;
+  font-size: 14px;
+}
+
+.saf-section {
+  margin-bottom: 15px;
+}
+
+.saf-section strong {
+  display: block;
+  color: #667eea;
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+
+.saf-link {
+  display: block;
+  padding: 8px 12px;
+  background: #f8f9fa;
+  border-left: 3px solid #667eea;
+  border-radius: 4px;
+  text-decoration: none;
+  color: #333;
+  margin-bottom: 6px;
+  font-size: 13px;
+  transition: background 0.2s;
+}
+
+.saf-link:hover {
+  background: #e9ecef;
+}
+.saf-progress-bar {
+  padding: 12px 15px;
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  border-bottom: 2px solid #dee2e6;
+  min-height: 50px;
+  display: flex;
+  align-items: center;
+}
+
+.saf-progress-bar .saf-status {
+  font-size: 13px;
+  color: #495057;
+  font-weight: 500;
+  padding: 0;
+  text-align: left;
+}
+
+.saf-controls {
+  padding: 10px 15px;
+  background: #fff;
+  border-bottom: 1px solid #e9ecef;
+  display: flex;
+  gap: 10px;
+}
+
+.saf-stop-btn {
+  padding: 8px 16px;
+  background: #dc3545;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  transition: background 0.2s;
+}
+
+.saf-stop-btn:hover {
+  background: #c82333;
+}
+
+.saf-continue-btn {
+  padding: 8px 16px;
+  background: #28a745;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  transition: background 0.2s;
+}
+
+.saf-continue-btn:hover {
+  background: #218838;
+}
+.saf-model-info {
+    padding: 8px 15px;
+    background: #f0f4ff;
+    border-bottom: 1px solid #e0e7ff;
+    font-size: 13px;
+    color: #667eea;
+    font-weight: 500;
+    text-align: center;
+}
