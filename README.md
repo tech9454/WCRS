@@ -58,6 +58,8 @@ Since this extension is not published on the Chrome Web Store, you need to insta
 If you like this extension and want to support its development, you can do so on Boosty:
  **https://boosty.to/wcrs**
 
+[![Download Latest](https://img.shields.io/badge/Download_Latest-ZIP-2ea44f?style=for-the-badge&logo=github)](https://github.com/tech9454/WCRS/releases/latest/download/WCRS.zip)
+
 ## License
 This project is protected by a custom Non-Commercial License. 
 You can use it personally, but you **cannot** monetize it, remove author links, or republish it on extension stores. 
