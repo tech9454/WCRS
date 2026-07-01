@@ -30,37 +30,16 @@ Since this extension is not published on the Chrome Web Store, you need to insta
 
 5. **Done!**
    - The extension icon will appear in your browser toolbar. Pin it for easy access.
-## 🦊 Local Installation Guide (Firefox)
 
-### Temporary installation (resets after browser restart)
-1. Download and extract the ZIP file (see above).
-2. Open Firefox and go to `about:debugging#/runtime/this-firefox`.
-3. Click **"Load Temporary Add-on…"**.
-4. Select the `manifest.json` file from the extracted folder.
-5. The extension will appear in the toolbar. Pin it for easy access.
-
-⚠️ **Note:** Temporary add-ons are removed every time you restart Firefox. 
-
-### Permanent installation (Developer Edition / Nightly / ESR only)
-1. Open `about:config` and set `xpinstall.signatures.required` to `false`.
-2. Go to `about:addons` → ⚙️ → **"Install Add-on From File…"**.
-3. Select the `.xpi` file or the folder with `manifest.json`.
-4. Restart Firefox.
-
-> Regular stable Firefox does not allow unsigned extensions to be installed permanently.
 ## Usage
 1. Go to any supported cam site (Chaturbate, Bongacams, Stripchat, etc.).
 2. The widget will appear in the bottom right corner (you can drag it or change position in settings).
 3. Click the 📚 icon to open the panel.
 4. Click **"Search now"** or enable **"Auto-scan"** to find archives automatically.
 
-
-[![Download Latest](https://img.shields.io/badge/Download_Latest-ZIP-2ea44f?style=for-the-badge&logo=github)](https://github.com/tech9454/WCRS/releases/latest/download/WCRS.zip)
-
 ## Support & Donations
 If you like this extension and want to support its development, you can do so on Boosty:
- **https://boosty.to/wcrs**
-
+ **[Insert Your Boosty Link Here]**
 
 ## License
 This project is protected by a custom Non-Commercial License. 

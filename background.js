@@ -1,24 +1,22 @@
-// Переводы статусов
+chrome.tabs.onRemoved.addListener((tabId) => {
+  searchResults.delete(tabId);
+  cancelledSearches.delete(tabId);
+  pausedSearches.delete(tabId);
+});
 const STATUS_TEXT = {
-    en: { checking: 'Checking', foundOn: 'Found on', paused: 'Search paused', completed: 'Search completed', stopped: 'Search stopped', mirror_search: 'Searching for working mirror...', mirror_found: 'Working mirror' },
-    ru: { checking: 'Проверяю', foundOn: 'Найдено на', paused: 'Поиск на паузе', completed: 'Поиск завершён', stopped: 'Поиск остановлен', mirror_search: 'Ищу рабочее зеркало Bongacams...', mirror_found: 'Рабочее зеркало' }
+  en: { checking: 'Checking', foundOn: 'Found on', paused: 'Search paused', completed: 'Search completed', stopped: 'Search stopped', mirror_search: 'Searching for working mirror...', mirror_found: 'Working mirror' },
+  ru: { checking: 'Проверяю', foundOn: 'Найдено на', paused: 'Поиск на паузе', completed: 'Поиск завершён', stopped: 'Поиск остановлен', mirror_search: 'Ищу рабочее зеркало Bongacams...', mirror_found: 'Рабочее зеркало' }
 };
-
 let bgLang = 'en';
 chrome.storage.sync.get({ language: 'en' }, (items) => { bgLang = items.language || 'ru'; });
 chrome.storage.onChanged.addListener((changes, area) => {
-    if (area === 'sync' && changes.language) {
-        bgLang = changes.language.newValue || 'en';
-    }
+  if (area === 'sync' && changes.language) {
+    bgLang = changes.language.newValue || 'en';
+  }
 });
-
 function t(key) {
-    return (STATUS_TEXT[bgLang] && STATUS_TEXT[bgLang][key]) || STATUS_TEXT.ru[key] || key;
+  return (STATUS_TEXT[bgLang] && STATUS_TEXT[bgLang][key]) || STATUS_TEXT.ru[key] || key;
 }
-function t(key) {
-  return STATUS_TEXT[key] || key;
-}
-
 const SEARCH_ENGINES = [
   { name: 'DuckDuckGo', search: searchDuckDuckGo },
   { name: 'Яндекс', search: searchYandex },
@@ -27,7 +25,6 @@ const SEARCH_ENGINES = [
   { name: 'Mail.ru', search: searchMailRu },
   { name: 'Bing', search: searchBing }
 ];
-
 const BLACKLIST_DOMAINS = [
   'mradx.net', 'mail.ru', 'yandex.ru', 'yandex.com', 'ya.ru',
   'google.com', 'google.ru', 'duckduckgo.com', 'bing.com',
@@ -35,11 +32,9 @@ const BLACKLIST_DOMAINS = [
   'googlesyndication.com', 'adclick', 'advertising',
   'facebook.com', 'vk.com', 'twitter.com', 'youtube.com'
 ];
-
 const searchResults = new Map();
 const cancelledSearches = new Set();
 const pausedSearches = new Map();
-
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === 'START_SEARCH') {
     const tabId = sender.tab?.id;
@@ -80,8 +75,27 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     findBongaMirror().then(mirror => sendResponse({ mirror }));
     return true;
   }
+  if (msg.type === 'GET_PAUSE_STATE') {
+    const tabId = sender.tab?.id;
+    if (tabId) {
+      const paused = pausedSearches.get(tabId);
+      if (paused) {
+        sendResponse({ 
+          isPaused: true, 
+          siteIndex: paused.siteIndex,
+          results: paused.allResults,
+          model: paused.model,
+          hostname: paused.hostname
+        });
+      } else {
+        sendResponse({ isPaused: false });
+      }
+    } else {
+      sendResponse({ isPaused: false });
+    }
+    return true;
+  }  
 });
-
 function isBlacklisted(url) {
   try {
     const hostname = new URL(url).hostname.toLowerCase();
@@ -90,7 +104,6 @@ function isBlacklisted(url) {
     return true;
   }
 }
-
 function cleanModelUrl(url) {
   if (!url) return url;
   let cleaned = url.trim();
@@ -111,19 +124,18 @@ function cleanModelUrl(url) {
   }
   return cleaned;
 }
-
 function cleanTitle(title, url) {
   if (!title) {
     try { return new URL(url).hostname.replace('www.', ''); } catch (e) { return 'Ссылка'; }
   }
   let cleaned = title.trim();
-  cleaned = cleaned.replace(/\(document\.querySelector\([^)]*\)\|\|\{\}\)\.offsetHeight/gi, '');
-  cleaned = cleaned.replace(/document\.querySelector\([^)]*\)/gi, '');
+  cleaned = cleaned.replace(/(document\.querySelector\([^)]\)||\{\})\.offsetHeight/gi, '');
+  cleaned = cleaned.replace(/document\.querySelector\([^)]\)/gi, '');
   cleaned = cleaned.replace(/\{[^}]*\}/g, '');
   cleaned = cleaned.replace(/\([^)]*\)/g, '');
-  cleaned = cleaned.replace(/ya\.rum\.sendraf\(\d+\)/gi, '');
+  cleaned = cleaned.replace(/ya\.rum\.sendraf(\d+)/gi, '');
   cleaned = cleaned.replace(/javascript:[^ ]*/gi, '');
-  cleaned = cleaned.replace(/[{}[\]]/g, '');
+  cleaned = cleaned.replace(/[{}\[\]]/g, '');
   cleaned = cleaned.replace(/\s+/g, ' ').trim();
   if (cleaned.length < 3) {
     try { cleaned = new URL(url).hostname.replace('www.', ''); } catch (e) { cleaned = 'Ссылка'; }
@@ -133,7 +145,6 @@ function cleanTitle(title, url) {
   }
   return cleaned;
 }
-
 function isModelMatch(url, title, model) {
   if (!model) return true;
   const modelLower = model.toLowerCase();
@@ -143,15 +154,15 @@ function isModelMatch(url, title, model) {
     modelLower,
     modelLower.replace(/[-_]/g, ''),
     modelLower.replace(/[-_]/g, ' '),
-    modelLower.replace(/-/g, '_'),
-    modelLower.replace(/_/g, '-')
+    modelLower.replace(/-/g, ' '),
+    modelLower.replace(/ /g, '-')
   ];
   const cleanTitleText = titleLower
-    .replace(/ya\.rum\.sendraf\(\d+\)/gi, '')
+    .replace(/ya\.rum\.sendraf(\d+)/gi, '')
     .replace(/javascript:[^ ]*/gi, '')
-    .replace(/\(\d+\)/g, '')
-    .replace(/[{}[\]]/g, '')
-    .replace(/\(document\.querySelector\([^)]*\)\|\|\{\}\)\.offsetHeight/gi, '')
+    .replace(/(\d+)/g, '')
+    .replace(/[{}\[\]]/g, '')
+    .replace(/(document\.querySelector\([^)]*\)||\{\})\.offsetHeight/gi, '')
     .trim();
   const urlHasModel = modelVariants.some(variant => {
     const pathPattern = new RegExp('[/\\\\]' + variant.replace(/[-_]/g, '[-_]') + '([/\\\\?&]|$)', 'i');
@@ -164,7 +175,7 @@ function isModelMatch(url, title, model) {
   const isTechnicalTitle = cleanTitleText.length < 3 ||
     cleanTitleText.includes('sendraf') ||
     cleanTitleText.includes('javascript') ||
-    /^[0-9\(\)\{\}\[\]]+$/.test(cleanTitleText.replace(/\s/g, ''));
+    /^[0-9(){}\[\]]+$/.test(cleanTitleText.replace(/\s/g, ''));
   if (isTechnicalTitle) {
     console.log(`[SAF] Filtered technical title: "${title}"`);
     return false;
@@ -175,7 +186,6 @@ function isModelMatch(url, title, model) {
   }
   return result;
 }
-
 async function startCascadeSearch(tabId, data) {
   const { model, hostname } = data;
   console.log('[SAF] Starting search for:', model, 'on tab:', tabId);
@@ -193,7 +203,6 @@ async function startCascadeSearch(tabId, data) {
   const settings = await new Promise(resolve => {
     chrome.storage.sync.get({
       archiveSites: getDefaultArchiveSites(),
-      searchDelayMs: 3000,
       pauseOnFound: true
     }, resolve);
   });
@@ -206,19 +215,16 @@ async function startCascadeSearch(tabId, data) {
     const site = settings.archiveSites[i];
     const siteName = extractDomain(site);
     sendUpdate(tabId, {
-      status: ' ' + t('checking') + ' ' + (i + 1) + '/' + settings.archiveSites.length + ': ' + siteName + '...',
+      status: '🔍 ' + t('checking') + ' ' + (i + 1) + '/' + settings.archiveSites.length + ': ' + siteName + '...',
       progress: { current: i + 1, total: settings.archiveSites.length }
     });
     let found = false;
     for (let j = 0; j < SEARCH_ENGINES.length; j++) {
       if (cancelledSearches.has(tabId)) {
-        sendUpdate(tabId, { status: ' ' + t('stopped'), completed: true, results: allResults });
+        sendUpdate(tabId, { status: '⛔ ' + t('stopped'), completed: true, results: allResults });
         return;
       }
       const engine = SEARCH_ENGINES[j];
-      if (j > 0) {
-        await new Promise(r => setTimeout(r, settings.searchDelayMs));
-      }
       console.log(`[SAF] Trying ${engine.name} for ${siteName}...`);
       const results = await engine.search(site, model);
       if (results.captcha) {
@@ -256,20 +262,15 @@ async function startCascadeSearch(tabId, data) {
       });
       return;
     }
-    if (i < settings.archiveSites.length - 1) {
-      await new Promise(r => setTimeout(r, settings.searchDelayMs));
-    }
   }
   sendUpdate(tabId, { status: '✅ ' + t('completed'), completed: true, results: allResults });
   searchResults.set(tabId, allResults);
 }
-
 async function continueSearch(tabId, startIndex, existingResults, model, hostname) {
   console.log('[SAF] Continuing search from index:', startIndex);
   const settings = await new Promise(resolve => {
     chrome.storage.sync.get({
       archiveSites: getDefaultArchiveSites(),
-      searchDelayMs: 3000,
       pauseOnFound: true
     }, resolve);
   });
@@ -282,19 +283,16 @@ async function continueSearch(tabId, startIndex, existingResults, model, hostnam
     const site = settings.archiveSites[i];
     const siteName = extractDomain(site);
     sendUpdate(tabId, {
-      status: ' ' + t('checking') + ' ' + (i + 1) + '/' + settings.archiveSites.length + ': ' + siteName + '...',
+      status: '🔍 ' + t('checking') + ' ' + (i + 1) + '/' + settings.archiveSites.length + ': ' + siteName + '...',
       progress: { current: i + 1, total: settings.archiveSites.length }
     });
     let found = false;
     for (let j = 0; j < SEARCH_ENGINES.length; j++) {
       if (cancelledSearches.has(tabId)) {
-        sendUpdate(tabId, { status: ' ' + t('stopped'), completed: true, results: allResults });
+        sendUpdate(tabId, { status: '⛔ ' + t('stopped'), completed: true, results: allResults });
         return;
       }
       const engine = SEARCH_ENGINES[j];
-      if (j > 0) {
-        await new Promise(r => setTimeout(r, settings.searchDelayMs));
-      }
       const results = await engine.search(site, model);
       if (results.captcha) continue;
       const filteredItems = results.items.filter(item => {
@@ -326,46 +324,38 @@ async function continueSearch(tabId, startIndex, existingResults, model, hostnam
       });
       return;
     }
-    if (i < settings.archiveSites.length - 1) {
-      await new Promise(r => setTimeout(r, settings.searchDelayMs));
-    }
   }
   sendUpdate(tabId, { status: '✅ ' + t('completed'), completed: true, results: allResults });
   searchResults.set(tabId, allResults);
 }
-
 function sendUpdate(tabId, data) {
   chrome.tabs.sendMessage(tabId, { type: 'SEARCH_UPDATE', data }).catch(() => {});
 }
-
 function getDefaultArchiveSites() {
   return [
-    "site:striptube.cc {model}",
-    "site:archivebate.com {model}",
-    "site:showcamrips.com {model}",
-    "site:camplanet.cc {model}",
-    "site:archive4free.com {model}",
-    "site:camrip.cc {model}",
-    "site:camhive.net {model}",
-    "site:ecordbate.com {model}",
-    "site:cumcams.cc {model}",
-    "site:recu.me {model}",
-    "site:camwhores.tv {model}",
-    "site:privaterecords.webcam {model}",
-    "site:livecamrips.to {model}",
-    "site:camchickscaps.com {model}",
-    "site:cloudbate.com {model}"
+    'striptube.cc',
+    'showcamrips.com',
+    'camplanet.cc',
+    'archive4free.com',
+    'camrip.cc',
+    'camhive.net',
+    'archivebate.com',
+    'ecordbate.com',
+    'cumcams.cc',
+    'recu.me',
+    'camwhores.tv',
+    'privaterecords.webcam',
+    'livecamrips.to',
+    'camchickscaps.com',
+    'cloudbate.com'
   ];
 }
-function extractDomain(template) {
-  const match = template.match(/site:([^\s]+)/);
-  if (match) return match[1];
-  return template.substring(0, 30);
+function extractDomain(domain) {
+  return domain;
 }
-
 async function findBongaMirror() {
   for (const engine of SEARCH_ENGINES) {
-    const results = await engine.search('bongacams official site', '');
+    const results = await engine.search('bongacams.com', 'official site');
     if (!results.captcha && results.items.length > 0) {
       for (const item of results.items) {
         if (!item.isAd && item.url.includes('bonga') && !isBlacklisted(item.url)) {
@@ -377,7 +367,6 @@ async function findBongaMirror() {
   }
   return 'bongacams.com';
 }
-
 async function fetchHtml(url) {
   try {
     const response = await fetch(url, {
@@ -395,9 +384,8 @@ async function fetchHtml(url) {
     return '';
   }
 }
-
 async function searchDuckDuckGo(template, model) {
-  const query = model ? template.replace(/{model}/g, model) : template;
+  const query = `site:${template} ${model}`;
   const url = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
   const html = await fetchHtml(url);
   if (!html) return { items: [], captcha: false };
@@ -423,9 +411,8 @@ async function searchDuckDuckGo(template, model) {
   }
   return { items: items.slice(0, 10), captcha: false };
 }
-
 async function searchYandex(template, model) {
-  const query = model ? template.replace(/{model}/g, model) : template;
+  const query = `site:${template} ${model}`;
   const url = `https://yandex.ru/search/?text=${encodeURIComponent(query)}&lr=225`;
   const html = await fetchHtml(url);
   if (!html) return { items: [], captcha: false };
@@ -452,9 +439,8 @@ async function searchYandex(template, model) {
   }
   return { items: items.slice(0, 10), captcha: false };
 }
-
 async function searchGoogle(template, model) {
-  const query = model ? template.replace(/{model}/g, model) : template;
+  const query = `site:${template} ${model}`;
   const url = `https://www.google.com/search?q=${encodeURIComponent(query)}&hl=ru`;
   const html = await fetchHtml(url);
   if (!html) return { items: [], captcha: false };
@@ -482,9 +468,8 @@ async function searchGoogle(template, model) {
   }
   return { items: items.slice(0, 10), captcha: false };
 }
-
 async function searchRambler(template, model) {
-  const query = model ? template.replace(/{model}/g, model) : template;
+  const query = `site:${template} ${model}`;
   const url = `https://nova.rambler.ru/search?query=${encodeURIComponent(query)}`;
   const html = await fetchHtml(url);
   if (!html) return { items: [], captcha: false };
@@ -508,9 +493,8 @@ async function searchRambler(template, model) {
   }
   return { items: items.slice(0, 10), captcha: false };
 }
-
 async function searchMailRu(template, model) {
-  const query = model ? template.replace(/{model}/g, model) : template;
+  const query = `site:${template} ${model}`;
   const url = `https://go.mail.ru/search?q=${encodeURIComponent(query)}`;
   const html = await fetchHtml(url);
   if (!html) return { items: [], captcha: false };
@@ -534,9 +518,8 @@ async function searchMailRu(template, model) {
   }
   return { items: items.slice(0, 10), captcha: false };
 }
-
 async function searchBing(template, model) {
-  const query = model ? template.replace(/{model}/g, model) : template;
+  const query = `site:${template} ${model}`;
   const url = `https://www.bing.com/search?q=${encodeURIComponent(query)}`;
   const html = await fetchHtml(url);
   if (!html) return { items: [], captcha: false };
@@ -560,7 +543,6 @@ async function searchBing(template, model) {
   }
   return { items: items.slice(0, 10), captcha: false };
 }
-
 function getRotatedUserAgent() {
   const agents = [
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',

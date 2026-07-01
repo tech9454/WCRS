@@ -2,100 +2,198 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Settings</title>
+  <title data-en="Settings" data-ru="Настройки">Settings</title>
   <style>
-    body { font-family: Arial, sans-serif; max-width: 800px; margin: 20px auto; padding: 20px; background: #f5f5f5; }
-    h2 { color: #333; border-bottom: 2px solid #667eea; padding-bottom: 10px; }
-    .setting-group { background: white; padding: 15px; margin-bottom: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-    .setting-row { display: flex; align-items: center; margin-bottom: 10px; position: relative; flex-wrap: wrap; }
-    .setting-row label { flex: 1; font-weight: 500; color: #333; min-width: 150px; }
-    .setting-row input[type="text"], .setting-row textarea, .setting-row select { flex: 2; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; min-width: 200px; }
-    .setting-row textarea { min-height: 80px; resize: vertical; width: 100%; }
-    .setting-row input[type="checkbox"] { margin-right: 8px; }
-    .setting-row input[type="number"] { width: 100px; padding: 8px; border: 1px solid #ddd; border-radius: 4px; }
-    .help-icon { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; background: #667eea; color: white; border-radius: 50%; font-size: 12px; font-weight: bold; cursor: help; margin-left: 8px; position: relative; }
-    .help-icon:hover .help-tooltip { display: block; }
-    .help-tooltip { display: none; position: absolute; left: 30px; top: 50%; transform: translateY(-50%); background: #333; color: white; padding: 8px 12px; border-radius: 4px; font-size: 12px; z-index: 1000; max-width: 300px; white-space: normal; box-shadow: 0 2px 8px rgba(0,0,0,0.3); line-height: 1.4; }
-    .help-tooltip::before { content: ''; position: absolute; left: -6px; top: 50%; transform: translateY(-50%); border: 6px solid transparent; border-right-color: #333; }
-    button { background: #667eea; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-size: 14px; margin-top: 10px; }
+    :root {
+      --bg: #ffffff;
+      --bg-section: #ffffff;
+      --text: #333333;
+      --border: #e0e0e0;
+      --accent: #667eea;
+      --input-bg: #ffffff;
+      --input-border: #cccccc;
+    }
+    body.dark {
+      --bg: #1a1a2e;
+      --bg-section: #16213e;
+      --text: #e0e0e0;
+      --border: #2a2a4a;
+      --accent: #7c8cf5;
+      --input-bg: #0f3460;
+      --input-border: #2a2a4a;
+    }
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      max-width: 800px;
+      margin: 0 auto;
+      background: var(--bg);
+      color: var(--text);
+      transition: background 0.3s, color 0.3s;
+    }
+    h1 { color: var(--accent); }
+    .section {
+      margin-bottom: 25px;
+      padding: 15px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--bg-section);
+    }
+    .section h2 { margin-top: 0; color: var(--accent); font-size: 18px; }
+    label { display: block; margin-bottom: 8px; font-weight: 500; }
+    textarea {
+      width: 100%; min-height: 150px; padding: 8px;
+      border: 1px solid var(--input-border); border-radius: 4px;
+      font-family: monospace; background: var(--input-bg); color: var(--text);
+      box-sizing: border-box;
+    }
+    select {
+      padding: 8px; border: 1px solid var(--input-border); border-radius: 4px;
+      background: var(--input-bg); color: var(--text);
+    }
+    .checkbox-group { margin-bottom: 10px; }
+    .checkbox-group label { display: inline; margin-left: 8px; font-weight: normal; }
+    button {
+      background: var(--accent); color: white; border: none;
+      padding: 10px 20px; border-radius: 4px; cursor: pointer; font-size: 14px;
+    }
     button:hover { background: #5568d3; }
-    #statusMsg { color: #2ed573; font-weight: bold; margin-left: 10px; }
+    
+    .help-icon {
+      display: inline-block;
+      margin-left: 8px;
+      cursor: help;
+      color: var(--accent);
+      font-weight: bold;
+      font-size: 13px;
+      width: 22px;
+      height: 22px;
+      border: 2px solid var(--accent);
+      border-radius: 50%;
+      text-align: center;
+      line-height: 18px;
+      position: relative;
+      vertical-align: middle;
+    }
+    .help-icon::before { content: '?'; }
+    .help-icon:hover::after {
+      content: attr(data-help);
+      position: absolute;
+      left: 30px;
+      top: -10px;
+      background: #2d3748;
+      color: white;
+      padding: 14px 18px;
+      border-radius: 8px;
+      font-size: 13px;
+      line-height: 1.6;
+      width: 320px;
+      max-width: 80vw;
+      white-space: normal;
+      word-wrap: break-word;
+      z-index: 9999;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+      pointer-events: none;
+    }
+    
+    .inline-row {
+      display: flex;
+      gap: 15px;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+    }
+    .inline-row > * { flex-shrink: 0; }
+    
+    #statusMsg { color: #28a745; margin-left: 10px; }
   </style>
 </head>
 <body>
-  <h2 data-en="Settings" data-ru="Настройки">Settings</h2>
-  
-  <div class="setting-group">
-    <div class="setting-row">
-      <label data-en="Language:" data-ru="Язык:">Language:</label>
+  <h1 data-en="Settings" data-ru="Настройки">Settings</h1>
+
+  <div class="section">
+    <h2 data-en="Appearance" data-ru="Внешний вид">Appearance</h2>
+    <div class="inline-row">
+      <label style="margin-bottom:0;">
+        <span data-en="Language" data-ru="Язык">Language</span>
+      </label>
       <select id="languageSelect">
         <option value="en">English</option>
         <option value="ru">Русский</option>
       </select>
-      <span class="help-icon">?<span class="help-tooltip" data-en="Select interface language" data-ru="Выберите язык интерфейса плагина"></span></span>
-    </div>
-  </div>
 
-  <div class="setting-group">
-    <h3 data-en="Sites" data-ru="Сайты">Sites</h3>
-    <div class="setting-row">
-      <label data-en="Stream Hosts:" data-ru="Хосты стримов:">Stream Hosts:</label>
-      <textarea id="streamHosts"></textarea>
-      <span class="help-icon">?<span class="help-tooltip" data-en="Comma-separated list of streaming sites to detect" data-ru="Список стрим-сайтов через запятую для определения"></span></span>
-    </div>
-    <div class="setting-row">
-      <label data-en="Archive Sites:" data-ru="Архивные сайты:">Archive Sites:</label>
-      <textarea id="archiveSites"></textarea>
-      <span class="help-icon">?<span class="help-tooltip" data-en="Search templates, one per line. Use {model} as placeholder" data-ru="Шаблоны поиска доверенных архивов, по одному на строку. Используйте {model} как заполнитель"></span></span>
-    </div>
-  </div>
-
-  <div class="setting-group">
-    <h3 data-en="Behavior" data-ru="Поведение">Behavior</h3>
-    <div class="setting-row">
-      <label><input type="checkbox" id="detectAnyStream"><span data-en="Detect any stream" data-ru="Определять любой стрим">Detect any stream</span></label>
-      <span class="help-icon">?<span class="help-tooltip" data-en="Try to detect streams on any website by content" data-ru="Пытаться определять стримы на любом сайте по контенту (видеоплеер, паттерны URL)"></span></span>
-    </div>
-    <div class="setting-row">
-      <label><input type="checkbox" id="useBongaMirror"><span data-en="Use Bonga mirror" data-ru="Использовать зеркало Bonga">Use Bonga mirror</span></label>
-      <span class="help-icon">?<span class="help-tooltip" data-en="Automatically find working BongaCams mirror before searching" data-ru="Автоматически находить рабочее зеркало BongaCams перед поиском"></span></span>
-    </div>
-    <div class="setting-row">
-      <label><input type="checkbox" id="pauseOnFound"><span data-en="Pause on found" data-ru="Пауза при находке">Pause on found</span></label>
-      <span class="help-icon">?<span class="help-tooltip" data-en="Stop search after finding first result, allow to continue manually" data-ru="Остановить поиск после нахождения первого результата, продолжить вручную"></span></span>
-    </div>
-    <div class="setting-row">
-      <label><input type="checkbox" id="autoScan"><span data-en="Auto-scan" data-ru="Автоскан">Auto-scan</span></label>
-      <span class="help-icon">?<span class="help-tooltip" data-en="Automatically start searching archives 3 seconds after detecting a stream" data-ru="Автоматически запускать поиск архивов через 3 секунды после обнаружения стрима"></span></span>
-    </div>
-  </div>
-
-  <div class="setting-group">
-    <h3 data-en="Position" data-ru="Позиция">Position</h3>
-    <div class="setting-row">
-      <label data-en="Widget position:" data-ru="Позиция виджета:">Widget position:</label>
-      <select id="widgetPosition">
-        <option value="top-left" data-en="Top Left" data-ru="Верхний левый">Top Left</option>
-        <option value="top-right" data-en="Top Right" data-ru="Верхний правый">Top Right</option>
-        <option value="bottom-left" data-en="Bottom Left" data-ru="Нижний левый">Bottom Left</option>
-        <option value="bottom-right" data-en="Bottom Right" data-ru="Нижний правый">Bottom Right</option>
+      <label style="margin-bottom:0; margin-left: 20px;">
+        <span data-en="Theme" data-ru="Тема">Theme</span>
+      </label>
+      <select id="themeSelect">
+        <option value="light" data-en="☀️ Light" data-ru="☀️ Светлая">☀️ Light</option>
+        <option value="dark" data-en="🌙 Dark" data-ru="🌙 Тёмная">🌙 Dark</option>
       </select>
-      <span class="help-icon">?<span class="help-tooltip" data-en="Choose where the widget appears on the screen" data-ru="Выберите, где виджет появляется на экране"></span></span>
     </div>
   </div>
 
-  <div class="setting-group">
-    <h3 data-en="Delays" data-ru="Задержки">Delays</h3>
-    <div class="setting-row">
-      <label data-en="Search delay:" data-ru="Задержка поиска:">Search delay:</label>
-      <input type="number" id="searchDelay" min="1000" max="10000" step="500">
-      <span data-en="ms" data-ru="мс">ms</span>
-      <span class="help-icon">?<span class="help-tooltip" data-en="Delay between search engine attempts (1000-10000 ms)" data-ru="Задержка между попытками поисковых систем (1000-10000 мс)"></span></span>
+  <div class="section">
+    <h2 data-en="Sites" data-ru="Сайты">Sites</h2>
+
+    <label>
+      <span data-en="Stream Hosts" data-ru="Хосты стримов">Stream Hosts</span>
+      <span class="help-icon" data-help-en="Sites where the plugin considers a stream is open. Add domains separated by commas." data-help-ru="Сайты, на которых плагин считает, что открыт стрим. Добавляй домены через запятую."></span>
+    </label>
+    <textarea id="streamHosts"></textarea>
+
+    <label style="margin-top: 15px;">
+      <span data-en="Archive Sites" data-ru="Сайты архивов">Archive Sites</span>
+      <span class="help-icon" data-help-en="Archive sites to search. One domain per line. Top-to-bottom order = check order." data-help-ru="Сайты-архивы, по которым идёт поиск. Один домен на строку. Порядок сверху вниз = порядок проверки."></span>
+    </label>
+    <textarea id="archiveSites"></textarea>
+  </div>
+
+  <div class="section">
+    <h2 data-en="Behavior" data-ru="Поведение">Behavior</h2>
+
+    <div class="checkbox-group">
+      <input type="checkbox" id="detectAnyStream">
+      <label for="detectAnyStream" data-en="Detect any stream" data-ru="Определять любой стрим">Detect any stream</label>
+      <span class="help-icon" data-help-en="Try to detect a stream even on unknown sites (by video player presence)." data-help-ru="Пытаться определить стрим даже на неизвестных сайтах (по наличию видеоплеера)."></span>
     </div>
+
+    <div class="checkbox-group">
+      <input type="checkbox" id="useBongaMirror">
+      <label for="useBongaMirror" data-en="Use Bonga mirror" data-ru="Использовать зеркало Bonga">Use Bonga mirror</label>
+      <span class="help-icon" data-help-en="On Bonga sites, first find a working mirror via search engines." data-help-ru="На сайтах Bonga сначала искать рабочее зеркало через поисковики."></span>
+    </div>
+
+    <div class="checkbox-group">
+      <input type="checkbox" id="pauseOnFound">
+      <label for="pauseOnFound" data-en="Pause on found" data-ru="Пауза при нахождении">Pause on found</label>
+      <span class="help-icon" data-help-en="Pause search on a site as soon as the first record is found — saves time." data-help-ru="Останавливать поиск по очередному сайту, как только нашлась первая запись — экономит время."></span>
+    </div>
+
+    <div class="checkbox-group">
+      <input type="checkbox" id="autoScan">
+      <label for="autoScan" data-en="Auto-scan" data-ru="Автосканирование">Auto-scan</label>
+      <span class="help-icon" data-help-en="Automatically start search when a stream is detected." data-help-ru="Автоматически начинать поиск при обнаружении стрима."></span>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2 data-en="Position" data-ru="Положение">Position</h2>
+
+    <label>
+      <span data-en="Widget position" data-ru="Положение виджета">Widget position</span>
+      <span class="help-icon" data-help-en="Where the floating widget button appears by default." data-help-ru="Где по умолчанию появляется плавающая кнопка виджета."></span>
+    </label>
+    <select id="widgetPosition">
+      <option value="top-left">↖️ Top Left / Сверху слева</option>
+      <option value="top-right">↗️ Top Right / Сверху справа</option>
+      <option value="bottom-left">↙️ Bottom Left / Снизу слева</option>
+      <option value="bottom-right">↘️ Bottom Right / Снизу справа</option>
+    </select>
   </div>
 
   <button id="saveBtn" data-en="Save" data-ru="Сохранить">Save</button>
   <span id="statusMsg"></span>
+
   <script src="options.js"></script>
 </body>
 </html>

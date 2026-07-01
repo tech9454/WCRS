@@ -12,7 +12,7 @@ const toggle = document.getElementById('pluginToggle');
 const statusText = document.getElementById('statusText');
 const statusDot = document.getElementById('statusDot');
 const toggleLabel = document.getElementById('toggleLabel');
-const settingsLink = document.getElementById('settingsLink'); // Объявляем ОДИН раз
+const settingsLink = document.getElementById('settingsLink'); 
 
 function updateUI(enabled) {
     statusText.textContent = enabled ? t('active') : t('disabled');
@@ -38,6 +38,6 @@ toggle.addEventListener('change', () => {
 if (settingsLink) {
     settingsLink.addEventListener('click', (e) => {
         e.preventDefault();
-        chrome.runtime.openOptionsPage(); // Надёжное открытие настроек
+        chrome.runtime.openOptionsPage(); 
     });
 }
