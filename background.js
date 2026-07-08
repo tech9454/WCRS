@@ -3,10 +3,12 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   cancelledSearches.delete(tabId);
   pausedSearches.delete(tabId);
 });
+
 const STATUS_TEXT = {
-  en: { checking: 'Checking', foundOn: 'Found on', paused: 'Search paused', completed: 'Search completed', stopped: 'Search stopped', mirror_search: 'Searching for working mirror...', mirror_found: 'Working mirror' },
+  en: { checking: 'Checking', foundOn: 'Found on', paused: ' Search paused', completed: 'Search completed', stopped: 'Search stopped', mirror_search: 'Searching for working mirror...', mirror_found: 'Working mirror' },
   ru: { checking: 'Проверяю', foundOn: 'Найдено на', paused: 'Поиск на паузе', completed: 'Поиск завершён', stopped: 'Поиск остановлен', mirror_search: 'Ищу рабочее зеркало Bongacams...', mirror_found: 'Рабочее зеркало' }
 };
+
 let bgLang = 'en';
 chrome.storage.sync.get({ language: 'en' }, (items) => { bgLang = items.language || 'ru'; });
 chrome.storage.onChanged.addListener((changes, area) => {
@@ -14,9 +16,11 @@ chrome.storage.onChanged.addListener((changes, area) => {
     bgLang = changes.language.newValue || 'en';
   }
 });
+
 function t(key) {
   return (STATUS_TEXT[bgLang] && STATUS_TEXT[bgLang][key]) || STATUS_TEXT.ru[key] || key;
 }
+
 const SEARCH_ENGINES = [
   { name: 'DuckDuckGo', search: searchDuckDuckGo },
   { name: 'Яндекс', search: searchYandex },
@@ -25,6 +29,7 @@ const SEARCH_ENGINES = [
   { name: 'Mail.ru', search: searchMailRu },
   { name: 'Bing', search: searchBing }
 ];
+
 const BLACKLIST_DOMAINS = [
   'mradx.net', 'mail.ru', 'yandex.ru', 'yandex.com', 'ya.ru',
   'google.com', 'google.ru', 'duckduckgo.com', 'bing.com',
@@ -32,9 +37,11 @@ const BLACKLIST_DOMAINS = [
   'googlesyndication.com', 'adclick', 'advertising',
   'facebook.com', 'vk.com', 'twitter.com', 'youtube.com'
 ];
+
 const searchResults = new Map();
 const cancelledSearches = new Set();
 const pausedSearches = new Map();
+
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === 'START_SEARCH') {
     const tabId = sender.tab?.id;
@@ -80,8 +87,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (tabId) {
       const paused = pausedSearches.get(tabId);
       if (paused) {
-        sendResponse({ 
-          isPaused: true, 
+        sendResponse({
+          isPaused: true,
           siteIndex: paused.siteIndex,
           results: paused.allResults,
           model: paused.model,
@@ -94,8 +101,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       sendResponse({ isPaused: false });
     }
     return true;
-  }  
+  }
 });
+
 function isBlacklisted(url) {
   try {
     const hostname = new URL(url).hostname.toLowerCase();
@@ -104,6 +112,7 @@ function isBlacklisted(url) {
     return true;
   }
 }
+
 function cleanModelUrl(url) {
   if (!url) return url;
   let cleaned = url.trim();
@@ -112,30 +121,31 @@ function cleanModelUrl(url) {
   cleaned = cleaned.replace(/\/pg\/\d+\//gi, '/');
   cleaned = cleaned.replace(/[?&]page=\d+/gi, '');
   cleaned = cleaned.replace(/[?&]p=\d+/gi, '');
-  cleaned = cleaned.replace(/^\/([a-zA-Z0-9.-]+\.[a-z]{2,}\/?.*)$/i, '$1');
+  cleaned = cleaned.replace(/^([a-zA-Z0-9.-]+\.[a-z]{2,}\/?.*)$/i, '$1');
   if (!cleaned.startsWith('http://') && !cleaned.startsWith('https://')) {
     cleaned = 'https://' + cleaned;
   }
   cleaned = cleaned.replace(/^https?:\/+/, 'https://');
-  cleaned = cleaned.replace(/([^:])\/\//g, '$1/');
+  cleaned = cleaned.replace(/([^:])\/\/+/g, '$1/');
   cleaned = cleaned.replace(/[?&]$/, '');
   if (cleaned !== url) {
     console.log(`[SAF] URL cleaned: "${url}" → "${cleaned}"`);
   }
   return cleaned;
 }
+
 function cleanTitle(title, url) {
   if (!title) {
     try { return new URL(url).hostname.replace('www.', ''); } catch (e) { return 'Ссылка'; }
   }
   let cleaned = title.trim();
-  cleaned = cleaned.replace(/(document\.querySelector\([^)]\)||\{\})\.offsetHeight/gi, '');
-  cleaned = cleaned.replace(/document\.querySelector\([^)]\)/gi, '');
-  cleaned = cleaned.replace(/\{[^}]*\}/g, '');
+  cleaned = cleaned.replace(/(document.querySelector([^)])||{}).offsetHeight/gi, '');
+  cleaned = cleaned.replace(/document.querySelector([^)])/gi, '');
+  cleaned = cleaned.replace(/{[^}]*}/g, '');
   cleaned = cleaned.replace(/\([^)]*\)/g, '');
-  cleaned = cleaned.replace(/ya\.rum\.sendraf(\d+)/gi, '');
+  cleaned = cleaned.replace(/ya\.ru\/sendraf(\d+)/gi, '');
   cleaned = cleaned.replace(/javascript:[^ ]*/gi, '');
-  cleaned = cleaned.replace(/[{}\[\]]/g, '');
+  cleaned = cleaned.replace(/[{}[\]]/g, '');
   cleaned = cleaned.replace(/\s+/g, ' ').trim();
   if (cleaned.length < 3) {
     try { cleaned = new URL(url).hostname.replace('www.', ''); } catch (e) { cleaned = 'Ссылка'; }
@@ -145,6 +155,7 @@ function cleanTitle(title, url) {
   }
   return cleaned;
 }
+
 function isModelMatch(url, title, model) {
   if (!model) return true;
   const modelLower = model.toLowerCase();
@@ -158,11 +169,11 @@ function isModelMatch(url, title, model) {
     modelLower.replace(/ /g, '-')
   ];
   const cleanTitleText = titleLower
-    .replace(/ya\.rum\.sendraf(\d+)/gi, '')
+    .replace(/ya\.ru\/sendraf(\d+)/gi, '')
     .replace(/javascript:[^ ]*/gi, '')
-    .replace(/(\d+)/g, '')
-    .replace(/[{}\[\]]/g, '')
-    .replace(/(document\.querySelector\([^)]*\)||\{\})\.offsetHeight/gi, '')
+    .replace(/\(\d+\)/g, '')
+    .replace(/[{}[\]]/g, '')
+    .replace(/(document.querySelector([^)]*)||{}).offsetHeight/gi, '')
     .trim();
   const urlHasModel = modelVariants.some(variant => {
     const pathPattern = new RegExp('[/\\\\]' + variant.replace(/[-_]/g, '[-_]') + '([/\\\\?&]|$)', 'i');
@@ -175,7 +186,7 @@ function isModelMatch(url, title, model) {
   const isTechnicalTitle = cleanTitleText.length < 3 ||
     cleanTitleText.includes('sendraf') ||
     cleanTitleText.includes('javascript') ||
-    /^[0-9(){}\[\]]+$/.test(cleanTitleText.replace(/\s/g, ''));
+    /^[0-9(){}[\]]+$/.test(cleanTitleText.replace(/\s/g, ''));
   if (isTechnicalTitle) {
     console.log(`[SAF] Filtered technical title: "${title}"`);
     return false;
@@ -186,9 +197,11 @@ function isModelMatch(url, title, model) {
   }
   return result;
 }
+
 async function startCascadeSearch(tabId, data) {
   const { model, hostname } = data;
   console.log('[SAF] Starting search for:', model, 'on tab:', tabId);
+
   let useBongaMirror = false;
   if (hostname.toLowerCase().includes('bonga')) {
     useBongaMirror = await new Promise(resolve => {
@@ -200,12 +213,14 @@ async function startCascadeSearch(tabId, data) {
       sendUpdate(tabId, { status: '✅ ' + t('mirror_found') + ': ' + mirror });
     }
   }
+
   const settings = await new Promise(resolve => {
     chrome.storage.sync.get({
       archiveSites: getDefaultArchiveSites(),
       pauseOnFound: true
     }, resolve);
   });
+
   const allResults = {};
   for (let i = 0; i < settings.archiveSites.length; i++) {
     if (cancelledSearches.has(tabId)) {
@@ -228,6 +243,15 @@ async function startCascadeSearch(tabId, data) {
       console.log(`[SAF] Trying ${engine.name} for ${siteName}...`);
       const results = await engine.search(site, model);
       if (results.captcha) {
+        chrome.notifications.create({
+          type: 'basic',
+          iconUrl: 'icons/icon48.png',
+          title: bgLang === 'ru' ? 'Требуется проверка' : 'Captcha Required',
+          message: bgLang === 'ru'
+            ? `На ${engine.name} обнаружена защита от ботов. Откройте поисковик и пройдите проверку.`
+            : `${engine.name} detected bot protection. Please open the search engine and complete verification.`,
+          priority: 2
+        });
         console.log(`[SAF] ${engine.name} captcha detected, trying next...`);
         continue;
       }
@@ -256,7 +280,7 @@ async function startCascadeSearch(tabId, data) {
         hostname: hostname
       });
       sendUpdate(tabId, {
-        status: '⏸️ ' + t('foundOn') + ' ' + siteName + '. ' + t('paused') + '.',
+        status: '️ ' + t('foundOn') + ' ' + siteName + '. ' + t('paused') + '.',
         paused: true,
         results: allResults
       });
@@ -266,6 +290,7 @@ async function startCascadeSearch(tabId, data) {
   sendUpdate(tabId, { status: '✅ ' + t('completed'), completed: true, results: allResults });
   searchResults.set(tabId, allResults);
 }
+
 async function continueSearch(tabId, startIndex, existingResults, model, hostname) {
   console.log('[SAF] Continuing search from index:', startIndex);
   const settings = await new Promise(resolve => {
@@ -283,18 +308,29 @@ async function continueSearch(tabId, startIndex, existingResults, model, hostnam
     const site = settings.archiveSites[i];
     const siteName = extractDomain(site);
     sendUpdate(tabId, {
-      status: '🔍 ' + t('checking') + ' ' + (i + 1) + '/' + settings.archiveSites.length + ': ' + siteName + '...',
+      status: ' ' + t('checking') + ' ' + (i + 1) + '/' + settings.archiveSites.length + ': ' + siteName + '...',
       progress: { current: i + 1, total: settings.archiveSites.length }
     });
     let found = false;
     for (let j = 0; j < SEARCH_ENGINES.length; j++) {
       if (cancelledSearches.has(tabId)) {
-        sendUpdate(tabId, { status: '⛔ ' + t('stopped'), completed: true, results: allResults });
+        sendUpdate(tabId, { status: ' ' + t('stopped'), completed: true, results: allResults });
         return;
       }
       const engine = SEARCH_ENGINES[j];
       const results = await engine.search(site, model);
-      if (results.captcha) continue;
+      if (results.captcha) {
+        chrome.notifications.create({
+          type: 'basic',
+          iconUrl: 'icons/icon48.png',
+          title: bgLang === 'ru' ? 'Требуется проверка' : 'Captcha Required',
+          message: bgLang === 'ru'
+            ? `На ${engine.name} обнаружена защита от ботов. Откройте поисковик и пройдите проверку.`
+            : `${engine.name} detected bot protection. Please open the search engine and complete verification.`,
+          priority: 2
+        });
+        continue;
+      }
       const filteredItems = results.items.filter(item => {
         if (isBlacklisted(item.url)) return false;
         if (!isModelMatch(item.url, item.title, model)) return false;
@@ -328,9 +364,15 @@ async function continueSearch(tabId, startIndex, existingResults, model, hostnam
   sendUpdate(tabId, { status: '✅ ' + t('completed'), completed: true, results: allResults });
   searchResults.set(tabId, allResults);
 }
+
 function sendUpdate(tabId, data) {
-  chrome.tabs.sendMessage(tabId, { type: 'SEARCH_UPDATE', data }).catch(() => {});
+  try {
+    chrome.tabs.sendMessage(tabId, { type: 'SEARCH_UPDATE', data }).catch(() => {});
+  } catch(e) {
+    console.error('[SAF] Failed to send update to tab:', tabId, e);
+  }
 }
+
 function getDefaultArchiveSites() {
   return [
     'striptube.cc',
@@ -350,9 +392,11 @@ function getDefaultArchiveSites() {
     'cloudbate.com'
   ];
 }
+
 function extractDomain(domain) {
   return domain;
 }
+
 async function findBongaMirror() {
   for (const engine of SEARCH_ENGINES) {
     const results = await engine.search('bongacams.com', 'official site');
@@ -367,6 +411,7 @@ async function findBongaMirror() {
   }
   return 'bongacams.com';
 }
+
 async function fetchHtml(url) {
   try {
     const response = await fetch(url, {
@@ -384,6 +429,7 @@ async function fetchHtml(url) {
     return '';
   }
 }
+
 async function searchDuckDuckGo(template, model) {
   const query = `site:${template} ${model}`;
   const url = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
@@ -411,6 +457,7 @@ async function searchDuckDuckGo(template, model) {
   }
   return { items: items.slice(0, 10), captcha: false };
 }
+
 async function searchYandex(template, model) {
   const query = `site:${template} ${model}`;
   const url = `https://yandex.ru/search/?text=${encodeURIComponent(query)}&lr=225`;
@@ -439,6 +486,7 @@ async function searchYandex(template, model) {
   }
   return { items: items.slice(0, 10), captcha: false };
 }
+
 async function searchGoogle(template, model) {
   const query = `site:${template} ${model}`;
   const url = `https://www.google.com/search?q=${encodeURIComponent(query)}&hl=ru`;
@@ -468,6 +516,7 @@ async function searchGoogle(template, model) {
   }
   return { items: items.slice(0, 10), captcha: false };
 }
+
 async function searchRambler(template, model) {
   const query = `site:${template} ${model}`;
   const url = `https://nova.rambler.ru/search?query=${encodeURIComponent(query)}`;
@@ -493,6 +542,7 @@ async function searchRambler(template, model) {
   }
   return { items: items.slice(0, 10), captcha: false };
 }
+
 async function searchMailRu(template, model) {
   const query = `site:${template} ${model}`;
   const url = `https://go.mail.ru/search?q=${encodeURIComponent(query)}`;
@@ -518,6 +568,7 @@ async function searchMailRu(template, model) {
   }
   return { items: items.slice(0, 10), captcha: false };
 }
+
 async function searchBing(template, model) {
   const query = `site:${template} ${model}`;
   const url = `https://www.bing.com/search?q=${encodeURIComponent(query)}`;
@@ -543,6 +594,7 @@ async function searchBing(template, model) {
   }
   return { items: items.slice(0, 10), captcha: false };
 }
+
 function getRotatedUserAgent() {
   const agents = [
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',

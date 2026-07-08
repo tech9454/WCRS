@@ -3,7 +3,7 @@
   "name": "WebCam Records Searcher",
   "version": "3.4",
   "description": "Automatic search for stream recordings with a cascade of search engines.",
-  "permissions": ["storage", "activeTab", "tabs"],
+  "permissions": ["storage", "activeTab", "tabs", "notifications"],
   "host_permissions": [
     "*://*.duckduckgo.com/*",
     "*://*.yandex.ru/*",

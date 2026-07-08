@@ -14,7 +14,8 @@ let lastDetectedModel = null;
 let currentLang = 'en';
 let streamHosts = [];
 let archiveSites = [];
-// Локализация виджета
+let searchDelay = 3000;
+
 const WIDGET_TEXTS = {
 en: {
 title: 'Archive Search',
@@ -33,8 +34,6 @@ stopped: 'Search stopped',
 continuing: 'Continuing search...',
 noNick: 'Could not detect nickname',
 modelChanged: 'Model changed. Ready to search',
-foundOn: 'Found on',
-paused: 'Search paused',
 completed: 'Search completed',
 cache: '(cache)',
 foundEarlier: 'Found earlier'
@@ -56,33 +55,33 @@ stopped: 'Поиск остановлен',
 continuing: 'Продолжаю поиск...',
 noNick: 'Не удалось определить ник',
 modelChanged: 'Модель сменилась. Готов к поиску',
-foundOn: 'Найдено на',
-paused: 'Поиск на паузе',
 completed: 'Поиск завершён',
 cache: '(кэш)',
 foundEarlier: 'Найдено ранее'
 }
 };
+
 function t(key) {
 return (WIDGET_TEXTS[currentLang] && WIDGET_TEXTS[currentLang][key]) || WIDGET_TEXTS.en[key] || key;
 }
+
 function loadLanguage() {
 chrome.storage.sync.get({ language: 'en' }, (items) => {
 currentLang = items.language || 'en';
 });
 }
+
 function escapeHtml(str) {
-  if (!str) return '';
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
+if (!str) return '';
+return String(str)
+.replace(/&/g, '&amp;')
+.replace(/</g, '&lt;')
+.replace(/>/g, '&gt;')
+.replace(/"/g, '&quot;')
+.replace(/'/g, '&#39;');
 }
-// Безопасное создание ссылки
+
 function createSafeLink(url, title) {
-// Проверка протокола
 if (!url || !url.startsWith('http')) return null;
 const a = document.createElement('a');
 a.href = url;
@@ -92,6 +91,7 @@ a.className = 'saf-link';
 a.textContent = title;
 return a;
 }
+
 function detectStreamByContent() {
 const hostname = window.location.hostname.toLowerCase().replace('www.', '');
 if (archiveSites.some(h => hostname === h || hostname.endsWith('.' + h))) {
@@ -106,6 +106,7 @@ const hasHls = document.querySelector('[src*=".m3u8"], [data-src*=".m3u8"]') !==
 const hasCamClasses = document.querySelector('[class*="videojs"], [class*="player"], [id*="video_player"], [class*="cam-container"]') !== null;
 return hasPathKeyword && (hasVideo || hasHls || hasCamClasses);
 }
+
 function detectStream() {
 const hostname = window.location.hostname.toLowerCase().replace('www.', '');
 for (const host of streamHosts) {
@@ -115,6 +116,7 @@ return true;
 }
 return false;
 }
+
 function extractModelNick() {
 const url = window.location.href;
 const hostname = window.location.hostname.toLowerCase().replace('www.', '');
@@ -134,7 +136,7 @@ return parts[parts.length - 1] || parts[parts.length - 2];
 return null;
 }
 }
-// Проверка смены модели
+
 function checkModelChange() {
 if (!isStreamDetected || !pluginEnabled) return;
 const currentModel = extractModelNick();
@@ -145,11 +147,9 @@ searchStarted = false;
 isSearching = false;
 isPaused = false;
 updateModelDisplay(currentModel);
-
 const content = document.getElementById('safContent');
 const badge = document.getElementById('safBadge');
 const progressBar = document.getElementById('safProgressBar');
-
 if (content) content.innerHTML = '';
 if (badge) {
 badge.textContent = '0';
@@ -157,10 +157,11 @@ badge.classList.remove('saf-found');
 }
 updateControlButtons();
 if (autoScan) {
-  startSearch(currentModel);
+startSearch(currentModel);
 }
 }
 }
+
 async function init() {
 loadLanguage();
 const settings = await new Promise(resolve => {
@@ -169,6 +170,7 @@ pluginEnabled: true,
 autoScan: false,
 detectAnyStream: true,
 widgetPosition: 'bottom-right',
+searchDelay: 3000,
 streamHosts: [
 'bongacams.com', 'bonga11.com', 'bonga12.com', 'bonga13.com',
 'bonga14.com', 'bonga15.com', 'bonga16.com', 'bonga17.com',
@@ -198,33 +200,30 @@ archiveSites: [
 pluginEnabled = settings.pluginEnabled;
 autoScan = settings.autoScan;
 widgetPosition = settings.widgetPosition;
+searchDelay = settings.searchDelay || 3000;
 streamHosts = settings.streamHosts;
 archiveSites = settings.archiveSites;
-  // Проверяем, есть ли активная пауза для этой вкладки
-  chrome.runtime.sendMessage({ type: 'GET_PAUSE_STATE' }, (response) => {
-    if (response && response.isPaused) {
-      console.log('[SAF] Restoring paused state');
-      isPaused = true;
-      isSearching = true;
-      searchStarted = true;
-      
-      // Восстанавливаем отображение результатов
-      if (response.results && Object.keys(response.results).length > 0) {
-        updateWidget({ results: response.results });
-      }
-      
-      // Показываем статус паузы
-      updateWidgetStatus('⏸️ ' + t('foundOn') + '. ' + t('paused') + '.');
-      
-      // Обновляем кнопки
-      updateControlButtons();
-    }
-  });
+
+chrome.runtime.sendMessage({ type: 'GET_PAUSE_STATE' }, (response) => {
+if (response && response.isPaused) {
+console.log('[SAF] Restoring paused state');
+isPaused = true;
+isSearching = true;
+searchStarted = true;
+if (response.results && Object.keys(response.results).length > 0) {
+updateWidget({ results: response.results });
+}
+updateWidgetStatus('⏸️ ' + t('foundOn') + '. ' + t('paused') + '.');
+updateControlButtons();
+}
+});
+
 console.log('[SAF] Init. pluginEnabled:', pluginEnabled, 'autoScan:', autoScan, 'position:', widgetPosition);
 if (!pluginEnabled) {
 console.log('[SAF] Plugin disabled, skipping');
 return;
 }
+
 isStreamDetected = detectStream();
 if (!isStreamDetected && settings.detectAnyStream) {
 setTimeout(() => {
@@ -242,22 +241,25 @@ lastDetectedModel = extractModelNick();
 updateModelDisplay(lastDetectedModel);
 onStreamDetected();
 }
+
 if (checkIntervalId) clearInterval(checkIntervalId);
 checkIntervalId = setInterval(() => {
-  checkAndStartSearch();
-  checkModelChange();
+checkAndStartSearch();
+checkModelChange();
 }, 1000);
 }
+
 function onStreamDetected() {
 if (!widgetInjected) {
 injectWidget();
 widgetInjected = true;
 }
 }
+
 async function checkAndStartSearch() {
 if (!isStreamDetected || searchStarted || !pluginEnabled) return;
 const currentTime = document.hidden ? totalActiveTime : totalActiveTime + (Date.now() - activeSince);
-if (currentTime >= 3000 && autoScan) {
+if (currentTime >= (searchDelay || 3000) && autoScan) {
 searchStarted = true;
 const modelNick = extractModelNick();
 if (modelNick) {
@@ -266,6 +268,7 @@ startSearch(modelNick);
 }
 }
 }
+
 function startSearch(modelNick) {
 if (!widgetInjected) {
 injectWidget();
@@ -275,6 +278,7 @@ updateWidgetStatus(t('searching'));
 isSearching = true;
 isPaused = false;
 updateControlButtons();
+try {
 chrome.runtime.sendMessage({
 type: 'START_SEARCH',
 data: {
@@ -283,7 +287,11 @@ url: window.location.href,
 hostname: window.location.hostname
 }
 });
+} catch(e) {
+console.error('[SAF] Extension context invalidated:', e);
 }
+}
+
 function applyWidgetPosition() {
 const widget = document.getElementById('stream-archive-finder-widget');
 if (!widget) return;
@@ -311,6 +319,7 @@ widget.style.right = '20px';
 break;
 }
 }
+
 function injectWidget() {
 const widget = document.createElement('div');
 widget.id = 'stream-archive-finder-widget';
@@ -397,66 +406,58 @@ widget.appendChild(toggle);
 widget.appendChild(panel);
 document.body.appendChild(widget);
 chrome.storage.sync.get({ theme: 'dark' }, (items) => {
-  if (items.theme === 'dark') {
-    document.body.classList.add('dark-theme');
-  }
+if (items.theme === 'dark') {
+document.body.classList.add('dark-theme');
+}
 });
 applyWidgetPosition();
-// Показываем имя модели, если оно уже определено (при обновлении страницы)
+
 if (lastDetectedModel) {
 updateModelDisplay(lastDetectedModel);
 }
-// Drag-and-drop с любой точки (кроме интерактивных элементов)
+
 let isDragging = false;
 let dragOffsetX = 0;
 let dragOffsetY = 0;
-
 panel.addEventListener('mousedown', (e) => {
-  // Не начинаем drag если клик по интерактивным элементам
-  if (e.target.tagName === 'BUTTON' || 
-      e.target.tagName === 'INPUT' || 
-      e.target.tagName === 'A' ||
-      e.target.id === 'safClose' ||
-      e.target.closest('.saf-controls') ||
-      e.target.closest('.saf-content') ||
-      e.target.closest('.saf-link')) {
-    return;
-  }
-  isDragging = true;
-  const rect = panel.getBoundingClientRect();
-  dragOffsetX = e.clientX - rect.left;
-  dragOffsetY = e.clientY - rect.top;
-  panel.style.position = 'fixed';
-  panel.style.cursor = 'move';
-  e.preventDefault();
+if (e.target.tagName === 'BUTTON' ||
+e.target.tagName === 'INPUT' ||
+e.target.tagName === 'A' ||
+e.target.id === 'safClose' ||
+e.target.closest('.saf-controls') ||
+e.target.closest('.saf-content') ||
+e.target.closest('.saf-link')) {
+return;
+}
+isDragging = true;
+const rect = panel.getBoundingClientRect();
+dragOffsetX = e.clientX - rect.left;
+dragOffsetY = e.clientY - rect.top;
+panel.style.position = 'fixed';
+panel.style.cursor = 'move';
+e.preventDefault();
 });
-
 document.addEventListener('mousemove', (e) => {
-  if (!isDragging) return;
-  
-  let newX = e.clientX - dragOffsetX;
-  let newY = e.clientY - dragOffsetY;
-  
-  // Ограничения по границам экрана
-  const panelRect = panel.getBoundingClientRect();
-  const maxX = window.innerWidth - 100; // Минимальная видимая часть
-  const maxY = window.innerHeight - 100;
-  
-  newX = Math.max(0, Math.min(newX, maxX));
-  newY = Math.max(0, Math.min(newY, maxY));
-  
-  panel.style.left = newX + 'px';
-  panel.style.top = newY + 'px';
-  panel.style.right = 'auto';
-  panel.style.bottom = 'auto';
+if (!isDragging) return;
+let newX = e.clientX - dragOffsetX;
+let newY = e.clientY - dragOffsetY;
+const panelRect = panel.getBoundingClientRect();
+const maxX = window.innerWidth - 100;
+const maxY = window.innerHeight - 100;
+newX = Math.max(0, Math.min(newX, maxX));
+newY = Math.max(0, Math.min(newY, maxY));
+panel.style.left = newX + 'px';
+panel.style.top = newY + 'px';
+panel.style.right = 'auto';
+panel.style.bottom = 'auto';
+});
+document.addEventListener('mouseup', () => {
+if (isDragging) {
+isDragging = false;
+panel.style.cursor = 'default';
+}
 });
 
-document.addEventListener('mouseup', () => {
-  if (isDragging) {
-    isDragging = false;
-    panel.style.cursor = 'default';
-  }
-});
 toggle.addEventListener('click', () => {
 panel.classList.toggle('saf-open');
 });
@@ -493,40 +494,53 @@ updateWidgetStatus(t('stopped'));
 });
 continueBtn.addEventListener('click', () => {
 console.log('[SAF] Continue button clicked');
+if (autoScan) {
+autoScan = false;
+const checkbox = document.getElementById('safAutoScan');
+if (checkbox) {
+checkbox.checked = false;
+}
+chrome.storage.sync.set({ autoScan: false });
+}
+try {
 chrome.runtime.sendMessage({ type: 'CONTINUE_SEARCH' });
+} catch(e) {
+console.error('[SAF] Extension context invalidated:', e);
+}
 isPaused = false;
 isSearching = true;
 updateControlButtons();
 updateWidgetStatus(t('continuing'));
 });
+
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-  if (msg.type === 'SEARCH_UPDATE') {
-    updateWidget(msg.data);
-  }
-  if (msg.type === 'PLUGIN_STATE_CHANGED') {
-    pluginEnabled = msg.data.pluginEnabled;
-    if (!pluginEnabled) {
-      widget.remove();
-      widgetInjected = false;
-      if (checkIntervalId) {
-        clearInterval(checkIntervalId);
-        checkIntervalId = null;
-      }
-    }
-  }
+if (msg.type === 'SEARCH_UPDATE') {
+updateWidget(msg.data);
+}
+if (msg.type === 'PLUGIN_STATE_CHANGED') {
+pluginEnabled = msg.data.pluginEnabled;
+if (!pluginEnabled) {
+widget.remove();
+widgetInjected = false;
+if (checkIntervalId) {
+clearInterval(checkIntervalId);
+checkIntervalId = null;
+}
+}
+}
 });
 
-// Вынести отдельно
 chrome.storage.onChanged.addListener((changes, area) => {
-  if (area === 'sync' && changes.theme) {
-    if (changes.theme.newValue === 'dark') {
-      document.body.classList.add('dark-theme');
-    } else {
-      document.body.classList.remove('dark-theme');
-    }
-  }
+if (area === 'sync' && changes.theme) {
+if (changes.theme.newValue === 'dark') {
+document.body.classList.add('dark-theme');
+} else {
+document.body.classList.remove('dark-theme');
+}
+}
 });
 }
+
 function updateControlButtons() {
 const searchBtn = document.getElementById('safSearchBtn');
 const stopBtn = document.getElementById('safStopBtn');
@@ -535,6 +549,7 @@ if (searchBtn) searchBtn.style.display = (!isSearching && !isPaused) ? 'inline-b
 if (stopBtn) stopBtn.style.display = (isSearching && !isPaused) ? 'inline-block' : 'none';
 if (continueBtn) continueBtn.style.display = isPaused ? 'inline-block' : 'none';
 }
+
 function updateWidgetStatus(status) {
 const progressBar = document.getElementById('safProgressBar');
 if (progressBar) {
@@ -545,23 +560,26 @@ div.textContent = status;
 progressBar.appendChild(div);
 }
 }
+
 function updateModelDisplay(model) {
-  const title = document.getElementById('safTitle');
-  if (!title) return;
-  title.textContent = '';
-  title.appendChild(document.createTextNode(t('title') + ' — '));
-  if (model) {
-    const span = document.createElement('span');
-    span.style.cssText = 'color: #e91e63; font-weight: 600; -webkit-text-stroke: 0.5px black; text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;';
-    span.textContent = model;
-    title.appendChild(span);
-  }
+const title = document.getElementById('safTitle');
+if (!title) return;
+title.textContent = '';
+title.appendChild(document.createTextNode(t('title') + ' — '));
+if (model) {
+const span = document.createElement('span');
+span.style.cssText = 'color: #e91e63; font-weight: 600; -webkit-text-stroke: 0.5px black; text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;';
+span.textContent = model;
+title.appendChild(span);
 }
+}
+
 function updateWidget(data) {
 const progressBar = document.getElementById('safProgressBar');
 const content = document.getElementById('safContent');
 const badge = document.getElementById('safBadge');
 if (!progressBar || !content) return;
+
 if (data.status) {
 progressBar.innerHTML = '';
 const div = document.createElement('div');
@@ -569,49 +587,49 @@ div.className = 'saf-status';
 div.textContent = data.status;
 progressBar.appendChild(div);
 }
+
 if (data.results) {
 content.innerHTML = '';
 let totalCount = 0;
 for (const [source, items] of Object.entries(data.results)) {
-  if (items.length > 0) {
-    const section = document.createElement('div');
-    section.className = 'saf-section';
-
-    const strong = document.createElement('strong');
-    strong.textContent = '📁 ' + source;
-    section.appendChild(strong);
-
-    items.forEach(item => {
-      const link = createSafeLink(item.url, item.title);
-      section.appendChild(link);
-      totalCount++;
-    });
-
-    content.appendChild(section);
-  }
+if (items.length > 0) {
+const section = document.createElement('div');
+section.className = 'saf-section';
+const strong = document.createElement('strong');
+strong.textContent = ' ' + source;
+section.appendChild(strong);
+items.forEach(item => {
+const link = createSafeLink(item.url, item.title);
+section.appendChild(link);
+totalCount++;
+});
+content.appendChild(section);
 }
-
+}
 if (totalCount > 0) {
-  badge.textContent = totalCount;
-  badge.classList.add('saf-found');
+badge.textContent = totalCount;
+badge.classList.add('saf-found');
 } else if (data.completed) {
-  const div = document.createElement('div');
-  div.className = 'saf-status';
-  div.textContent = t('notFound');
-  content.appendChild(div);
+const div = document.createElement('div');
+div.className = 'saf-status';
+div.textContent = t('notFound');
+content.appendChild(div);
 }
 }
+
 if (data.paused) {
 isPaused = true;
 isSearching = false;
 updateControlButtons();
 }
+
 if (data.completed && !data.paused) {
 isSearching = false;
 isPaused = false;
 updateControlButtons();
 }
 }
+
 document.addEventListener('visibilitychange', () => {
 if (document.hidden) {
 totalActiveTime += Date.now() - activeSince;
@@ -619,5 +637,6 @@ totalActiveTime += Date.now() - activeSince;
 activeSince = Date.now();
 }
 });
+
 init();
 })();
