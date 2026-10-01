@@ -1,642 +1,360 @@
+/* Виджет на странице стрима (Shadow DOM — стили сайта не ломают виджет и наоборот). */
 (() => {
-let activeSince = Date.now();
-let checkIntervalId = null;
-let totalActiveTime = 0;
-let isStreamDetected = false;
-let searchStarted = false;
-let widgetInjected = false;
-let pluginEnabled = true;
-let autoScan = false;
-let isSearching = false;
-let isPaused = false;
-let widgetPosition = { x: null, y: null };
-let lastDetectedModel = null;
-let currentLang = 'en';
-let streamHosts = [];
-let archiveSites = [];
-let searchDelay = 3000;
+  'use strict';
+  if (window.top !== window.self || window.__safInjected) return;
+  window.__safInjected = true;
 
-const WIDGET_TEXTS = {
-en: {
-title: 'Archive Search',
-modelLabel: 'Model:',
-ready: 'Ready to search',
-searching: 'Searching archives...',
-auto: 'Auto-scan',
-searchNow: 'Search now',
-checking: 'Checking',
-foundOn: 'Found on',
-paused: 'Search paused',
-stop: 'Stop',
-continue: 'Continue',
-notFound: 'Nothing found',
-stopped: 'Search stopped',
-continuing: 'Continuing search...',
-noNick: 'Could not detect nickname',
-modelChanged: 'Model changed. Ready to search',
-completed: 'Search completed',
-cache: '(cache)',
-foundEarlier: 'Found earlier'
-},
-ru: {
-title: 'Поиск архивов',
-modelLabel: 'Модель:',
-ready: 'Готов к поиску',
-searching: 'Ищу архивы...',
-auto: 'Автосканирование',
-searchNow: 'Искать сейчас',
-stop: 'Стоп',
-checking: 'Проверяю',
-foundOn: 'Найдено на',
-paused: 'Поиск на паузе',
-continue: 'Продолжить',
-notFound: 'Ничего не найдено',
-stopped: 'Поиск остановлен',
-continuing: 'Продолжаю поиск...',
-noNick: 'Не удалось определить ник',
-modelChanged: 'Модель сменилась. Готов к поиску',
-completed: 'Поиск завершён',
-cache: '(кэш)',
-foundEarlier: 'Найдено ранее'
-}
-};
+  // Фоновый скрипт просит прочитать выдачу в поисковой вкладке
+  chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+    if (msg && msg.type === 'SAF_BANNER') {
+      let b = document.getElementById('saf-banner');
+      if (!b) {
+        b = document.createElement('div'); b.id = 'saf-banner';
+        b.style.cssText = 'all:initial;display:block;position:fixed;top:0;left:0;right:0;z-index:2147483647;background:#667eea;color:#fff;font:600 14px Arial,sans-serif;padding:10px 16px;text-align:center;box-shadow:0 2px 10px rgba(0,0,0,.4);';
+        document.documentElement.appendChild(b);
+      }
+      b.textContent = String(msg.text || '');
+      return;
+    }
+    if (!msg || msg.type !== 'SAF_EXTRACT') return;
+    const links = [];
+    document.querySelectorAll('a[href]').forEach((a) => {
+      if (links.length >= 600 || !/^https?:/i.test(a.href)) return;
+      const hd = a.querySelector('h3, h2');
+      const text = ((hd ? hd.textContent : a.textContent) || '').replace(/\s+/g, ' ').trim().slice(0, 200);
+      links.push({ href: a.href, text });
+    });
+    sendResponse({ url: location.href, links, body: ((document.body && document.body.innerText) || '').slice(0, 1500) });
+  });
 
-function t(key) {
-return (WIDGET_TEXTS[currentLang] && WIDGET_TEXTS[currentLang][key]) || WIDGET_TEXTS.en[key] || key;
-}
+  const S = SAF;
+  let settings = Object.assign({}, S.DEFAULTS);
+  let viewState = null;
+  let currentNick = null;
+  let autoTimer = null;
+  let tickTimer = null;
+  let ui = null;           // ссылки на элементы виджета
+  let panelOpen = false;
+  let savedPos = null;     // {left, top} после перетаскивания
 
-function loadLanguage() {
-chrome.storage.sync.get({ language: 'en' }, (items) => {
-currentLang = items.language || 'en';
-});
-}
+  const T = (k, v) => S.t(settings.language, k, v);
+  const alive = () => { try { return !!chrome.runtime.id; } catch (_) { return false; } };
+  const send = (msg) => new Promise((res) => {
+    try { chrome.runtime.sendMessage(msg, (r) => { void chrome.runtime.lastError; res(r); }); } catch (_) { res(null); }
+  });
 
-function escapeHtml(str) {
-if (!str) return '';
-return String(str)
-.replace(/&/g, '&amp;')
-.replace(/</g, '&lt;')
-.replace(/>/g, '&gt;')
-.replace(/"/g, '&quot;')
-.replace(/'/g, '&#39;');
-}
+  /* ---------- определение страницы стрима ---------- */
+  const hostName = () => location.hostname.toLowerCase().replace(/^www\./, '');
+  const isArchive = () => settings.archiveSites.some((a) => S.hostMatches(hostName(), S.siteHost(a)));
+  const isStreamHost = () => settings.streamHosts.some((h) => S.hostMatches(hostName(), S.normalizeSite(h)));
+  function looksLikeStream() {
+    const kw = ['/live/', '/cam/', '/room/', '/chat/', '/model/', '/profile/'];
+    const href = location.href.toLowerCase();
+    if (!kw.some((k) => href.includes(k))) return false;
+    return !!document.querySelector('video, [src*=".m3u8"], [class*="videojs"], [class*="player"], [id*="video_player"], [class*="cam-container"]');
+  }
 
-function createSafeLink(url, title) {
-if (!url || !url.startsWith('http')) return null;
-const a = document.createElement('a');
-a.href = url;
-a.target = '_blank';
-a.rel = 'noopener noreferrer';
-a.className = 'saf-link';
-a.textContent = title;
-return a;
-}
+  /* ---------- главный цикл ---------- */
+  function tick() {
+    if (!alive()) { cleanup(); return; }
+    let nick = null;
+    if (settings.pluginEnabled && !isArchive() && (isStreamHost() || (settings.detectAnyStream && looksLikeStream()))) {
+      nick = S.extractNick(location.href);
+    }
+    if (!nick) {
+      if (ui) ui.host.style.display = 'none';
+      if (currentNick) { currentNick = null; clearTimeout(autoTimer); }
+      return;
+    }
+    ensureWidget();
+    ui.host.style.display = '';
+    if (S.norm(nick) !== S.norm(currentNick)) onNickChanged(nick);
+  }
 
-function detectStreamByContent() {
-const hostname = window.location.hostname.toLowerCase().replace('www.', '');
-if (archiveSites.some(h => hostname === h || hostname.endsWith('.' + h))) {
-console.log('[SAF] Archive site detected, skipping');
-return false;
-}
-const url = window.location.href.toLowerCase();
-const pathKeywords = ['/live/', '/cam/', '/room/', '/chat/', '/model/', '/profile/'];
-const hasPathKeyword = pathKeywords.some(kw => url.includes(kw));
-const hasVideo = document.querySelector('video') !== null;
-const hasHls = document.querySelector('[src*=".m3u8"], [data-src*=".m3u8"]') !== null;
-const hasCamClasses = document.querySelector('[class*="videojs"], [class*="player"], [id*="video_player"], [class*="cam-container"]') !== null;
-return hasPathKeyword && (hasVideo || hasHls || hasCamClasses);
-}
+  async function onNickChanged(nick) {
+    currentNick = nick;
+    clearTimeout(autoTimer);
+    ui.nick.value = nick;
+    viewState = null;
+    render();
+    const r = await send({ type: 'GET_STATE' });
+    if (S.norm(currentNick) !== S.norm(nick)) return;
+    const st = r && r.state;
+    if (st && S.norm(st.model) === S.norm(nick)) { viewState = st; render(); return; }
+    if (st) send({ type: 'RESET' });
+    if (settings.autoScan) scheduleAuto(nick);
+  }
 
-function detectStream() {
-const hostname = window.location.hostname.toLowerCase().replace('www.', '');
-for (const host of streamHosts) {
-if (hostname === host || hostname.endsWith('.' + host)) {
-return true;
-}
-}
-return false;
-}
+  function scheduleAuto(nick) {
+    clearTimeout(autoTimer);
+    autoTimer = setTimeout(function go() {
+      if (!settings.autoScan || S.norm(currentNick) !== S.norm(nick)) return;
+      if (document.hidden) { autoTimer = setTimeout(go, 1000); return; }
+      startSearch(nick, false);
+    }, settings.searchDelay);
+  }
 
-function extractModelNick() {
-const url = window.location.href;
-const hostname = window.location.hostname.toLowerCase().replace('www.', '');
-try {
-const urlObj = new URL(url);
-const parts = urlObj.pathname.split('/').filter(Boolean);
-if (hostname.includes('chaturbate') || hostname.includes('bonga') ||
-hostname.includes('stripchat') || hostname.includes('camsoda')) {
-for (const part of parts) {
-if (part.length >= 3 && !['live', 'cam', 'room', 'chat', 'rooms', 'featured', 'top', 'new'].includes(part.toLowerCase())) {
-return part;
-}
-}
-}
-return parts[parts.length - 1] || parts[parts.length - 2];
-} catch (e) {
-return null;
-}
-}
+  function startSearch(nick, force) {
+    nick = String(nick || '').trim();
+    if (!nick) { setStatusOnly(T('noNick')); return; }
+    viewState = { model: nick, phase: 'running', index: 0, total: 0, results: {}, checked: [] };
+    render();
+    send({ type: 'START_SEARCH', model: nick, force });
+  }
 
-function checkModelChange() {
-if (!isStreamDetected || !pluginEnabled) return;
-const currentModel = extractModelNick();
-if (currentModel && currentModel !== lastDetectedModel) {
-console.log(`[SAF] Model changed from ${lastDetectedModel} to ${currentModel}`);
-lastDetectedModel = currentModel;
-searchStarted = false;
-isSearching = false;
-isPaused = false;
-updateModelDisplay(currentModel);
-const content = document.getElementById('safContent');
-const badge = document.getElementById('safBadge');
-const progressBar = document.getElementById('safProgressBar');
-if (content) content.innerHTML = '';
-if (badge) {
-badge.textContent = '0';
-badge.classList.remove('saf-found');
-}
-updateControlButtons();
-if (autoScan) {
-startSearch(currentModel);
-}
-}
-}
+  function cleanup() {
+    clearInterval(tickTimer); clearTimeout(autoTimer);
+    if (ui) ui.host.remove();
+    ui = null;
+  }
 
-async function init() {
-loadLanguage();
-const settings = await new Promise(resolve => {
-chrome.storage.sync.get({
-pluginEnabled: true,
-autoScan: false,
-detectAnyStream: true,
-widgetPosition: 'bottom-right',
-searchDelay: 3000,
-streamHosts: [
-'bongacams.com', 'bonga11.com', 'bonga12.com', 'bonga13.com',
-'bonga14.com', 'bonga15.com', 'bonga16.com', 'bonga17.com',
-'chaturbate.com', 'stripchat.com', 'stripchat.webcam',
-'livejasmin.com', 'camsoda.com', 'myfreecams.com',
-'streamate.com', 'flirtymania.com', 'imlive.com'
-],
-archiveSites: [
-'striptube.cc',
-'showcamrips.com',
-'camplanet.cc',
-'archive4free.com',
-'camrip.cc',
-'camhive.net',
-'archivebate.com',
-'ecordbate.com',
-'cumcams.cc',
-'recu.me',
-'camwhores.tv',
-'privaterecords.webcam',
-'livecamrips.to',
-'camchickscaps.com',
-'cloudbate.com'
-]
-}, resolve);
-});
-pluginEnabled = settings.pluginEnabled;
-autoScan = settings.autoScan;
-widgetPosition = settings.widgetPosition;
-searchDelay = settings.searchDelay || 3000;
-streamHosts = settings.streamHosts;
-archiveSites = settings.archiveSites;
+  /* ---------- виджет ---------- */
+  const CSS = `
+  :host{all:initial}
+  *{box-sizing:border-box;font-family:Arial,Helvetica,sans-serif}
+  .wrap{position:relative;width:56px;height:56px;
+    --bg:#fff;--fg:#222;--muted:#666;--card:#f3f4f8;--line:#e3e5ee;--accent:#667eea}
+  .wrap.dark{--bg:#16213e;--fg:#e8e8f0;--muted:#9aa0b8;--card:#0f3460;--line:#2a2a4a;--accent:#7c8cf5}
+  .fab{width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,#667eea,#764ba2);display:flex;align-items:center;justify-content:center;
+    font-size:26px;cursor:pointer;box-shadow:0 4px 15px rgba(0,0,0,.35);user-select:none;position:relative;touch-action:none}
+  .badge{position:absolute;top:-4px;right:-4px;min-width:22px;height:22px;padding:0 5px;border-radius:11px;background:#ff4757;color:#fff;
+    font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;border:2px solid #fff}
+  .badge.found{background:#2ed573}
+  .panel{display:none;position:absolute;width:360px;max-width:calc(100vw - 24px);max-height:calc(100vh - 100px);background:var(--bg);color:var(--fg);
+    border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.4);overflow:hidden;flex-direction:column;font-size:13px}
+  .panel.open{display:flex}
+  .wrap.up .panel{bottom:66px}.wrap.down .panel{top:66px}.wrap.right .panel{right:0}.wrap.left .panel{left:0}
+  .head{background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;cursor:move;touch-action:none;user-select:none}
+  .head b{font-size:14px}
+  .x{background:none;border:0;color:#fff;font-size:22px;cursor:pointer;line-height:1;padding:0 4px}
+  .row{display:flex;gap:6px;padding:10px 12px 0;align-items:center}
+  input.nick{flex:1;min-width:0;padding:7px 9px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--fg);font-size:13px}
+  button.b{padding:7px 12px;border:0;border-radius:6px;color:#fff;cursor:pointer;font-size:12px;font-weight:600;background:var(--accent)}
+  button.b.stop{background:#dc3545}button.b.go2{background:#28a745}
+  .prog{margin:10px 12px 0;height:5px;border-radius:3px;background:var(--line);overflow:hidden}
+  .fill{height:100%;width:0;background:var(--accent);transition:width .25s}
+  .status{padding:8px 12px 0;color:var(--muted);font-size:12.5px}
+  .ctl{display:flex;gap:6px;align-items:center;padding:8px 12px;border-bottom:1px solid var(--line)}
+  .ctl label{display:flex;align-items:center;gap:5px;cursor:pointer;color:var(--fg);font-size:12.5px;margin-right:auto}
+  .body{padding:10px 12px 12px;overflow-y:auto}
+  .rf{color:var(--muted);font-size:12px;margin-bottom:8px}
+  .sec{margin-bottom:10px}.sec strong{display:block;color:var(--accent);font-size:12.5px;margin-bottom:4px}
+  a.l{display:block;padding:7px 10px;margin-bottom:5px;background:var(--card);border-left:3px solid var(--accent);border-radius:4px;color:var(--fg);text-decoration:none;font-size:12.5px;word-break:break-word}
+  a.l:hover{filter:brightness(1.12)}
+  .warn{padding:9px 10px;background:rgba(255,71,87,.12);border:1px solid rgba(255,71,87,.5);border-radius:6px;margin-bottom:10px;line-height:1.4}
+  .warn a{color:var(--accent);font-weight:700}
+  .hide{display:none!important}`;
 
-chrome.runtime.sendMessage({ type: 'GET_PAUSE_STATE' }, (response) => {
-if (response && response.isPaused) {
-console.log('[SAF] Restoring paused state');
-isPaused = true;
-isSearching = true;
-searchStarted = true;
-if (response.results && Object.keys(response.results).length > 0) {
-updateWidget({ results: response.results });
-}
-updateWidgetStatus('⏸️ ' + t('foundOn') + '. ' + t('paused') + '.');
-updateControlButtons();
-}
-});
+  function h(tag, props, ...kids) {
+    const el = document.createElement(tag);
+    if (props) for (const [k, v] of Object.entries(props)) {
+      if (k === 'class') el.className = v; else if (k === 'text') el.textContent = v; else el.setAttribute(k, v);
+    }
+    kids.forEach((c) => c && el.appendChild(c));
+    return el;
+  }
+  function link(url, text, cls) {
+    if (!/^https?:\/\//i.test(url)) return null;
+    const a = h('a', { class: cls, href: url, target: '_blank', rel: 'noopener noreferrer', text });
+    return a;
+  }
 
-console.log('[SAF] Init. pluginEnabled:', pluginEnabled, 'autoScan:', autoScan, 'position:', widgetPosition);
-if (!pluginEnabled) {
-console.log('[SAF] Plugin disabled, skipping');
-return;
-}
+  function ensureWidget() {
+    if (ui) return;
+    const host = document.createElement('div');
+    host.id = 'saf-host';
+    host.style.cssText = 'all:initial;position:fixed;z-index:2147483647;width:56px;height:56px;';
+    const root = host.attachShadow({ mode: 'open' });
+    const style = document.createElement('style'); style.textContent = CSS;
 
-isStreamDetected = detectStream();
-if (!isStreamDetected && settings.detectAnyStream) {
-setTimeout(() => {
-isStreamDetected = detectStreamByContent();
-if (isStreamDetected) {
-console.log('[SAF] Stream detected by content');
-lastDetectedModel = extractModelNick();
-updateModelDisplay(lastDetectedModel);
-onStreamDetected();
-}
-}, 2000);
-} else if (isStreamDetected) {
-console.log('[SAF] Stream detected by hostname');
-lastDetectedModel = extractModelNick();
-updateModelDisplay(lastDetectedModel);
-onStreamDetected();
-}
+    const badge = h('div', { class: 'badge', text: '0' });
+    const fab = h('div', { class: 'fab', text: '📼' }, badge);
+    const title = h('b'); const close = h('button', { class: 'x', text: '×' });
+    const head = h('div', { class: 'head' }, title, close);
+    const nick = h('input', { class: 'nick', type: 'text', spellcheck: 'false', autocomplete: 'off' });
+    const go = h('button', { class: 'b' });
+    const prog = h('div', { class: 'prog' }, h('div', { class: 'fill' }));
+    const status = h('div', { class: 'status' });
+    const auto = h('input', { type: 'checkbox' });
+    const autoLbl = h('label', null, auto, h('span'));
+    const stop = h('button', { class: 'b stop' });
+    const cont = h('button', { class: 'b go2' });
+    const ctl = h('div', { class: 'ctl' }, autoLbl, stop, cont);
+    const body = h('div', { class: 'body' });
+    const panel = h('div', { class: 'panel' }, head, h('div', { class: 'row' }, nick, go), prog, status, ctl, body);
+    const wrap = h('div', { class: 'wrap' }, fab, panel);
+    root.append(style, wrap);
+    document.documentElement.appendChild(host);
 
-if (checkIntervalId) clearInterval(checkIntervalId);
-checkIntervalId = setInterval(() => {
-checkAndStartSearch();
-checkModelChange();
-}, 1000);
-}
+    ui = { host, wrap, fab, badge, panel, title, close, nick, go, fill: prog.firstChild, status, auto, autoText: autoLbl.lastChild, stop, cont, body };
 
-function onStreamDetected() {
-if (!widgetInjected) {
-injectWidget();
-widgetInjected = true;
-}
-}
+    /* события */
+    go.addEventListener('click', () => startSearch(nick.value, true));
+    nick.addEventListener('keydown', (e) => { if (e.key === 'Enter') startSearch(nick.value, true); });
+    stop.addEventListener('click', () => send({ type: 'STOP_SEARCH' }));
+    cont.addEventListener('click', () => { send({ type: 'CONTINUE_SEARCH' }); if (viewState) { viewState.phase = 'running'; render(); } });
+    close.addEventListener('click', () => setOpen(false));
+    auto.addEventListener('change', () => {
+      settings.autoScan = auto.checked;
+      chrome.storage.sync.set({ autoScan: auto.checked });
+    });
+    makeDraggable(fab, () => setOpen(!panelOpen));
+    makeDraggable(head, null);
 
-async function checkAndStartSearch() {
-if (!isStreamDetected || searchStarted || !pluginEnabled) return;
-const currentTime = document.hidden ? totalActiveTime : totalActiveTime + (Date.now() - activeSince);
-if (currentTime >= (searchDelay || 3000) && autoScan) {
-searchStarted = true;
-const modelNick = extractModelNick();
-if (modelNick) {
-console.log('[SAF] Auto-starting search for:', modelNick);
-startSearch(modelNick);
-}
-}
-}
+    chrome.storage.local.get({ safPos: null }, (o) => { savedPos = o.safPos; applyPosition(); });
+    applyPosition();
+    render();
+  }
 
-function startSearch(modelNick) {
-if (!widgetInjected) {
-injectWidget();
-widgetInjected = true;
-}
-updateWidgetStatus(t('searching'));
-isSearching = true;
-isPaused = false;
-updateControlButtons();
-try {
-chrome.runtime.sendMessage({
-type: 'START_SEARCH',
-data: {
-model: modelNick,
-url: window.location.href,
-hostname: window.location.hostname
-}
-});
-} catch(e) {
-console.error('[SAF] Extension context invalidated:', e);
-}
-}
+  function setOpen(v) {
+    panelOpen = v;
+    ui.panel.classList.toggle('open', v);
+    placePanel();
+  }
 
-function applyWidgetPosition() {
-const widget = document.getElementById('stream-archive-finder-widget');
-if (!widget) return;
-widget.style.top = '';
-widget.style.bottom = '';
-widget.style.left = '';
-widget.style.right = '';
-switch (widgetPosition) {
-case 'top-left':
-widget.style.top = '20px';
-widget.style.left = '20px';
-break;
-case 'top-right':
-widget.style.top = '20px';
-widget.style.right = '20px';
-break;
-case 'bottom-left':
-widget.style.bottom = '20px';
-widget.style.left = '20px';
-break;
-case 'bottom-right':
-default:
-widget.style.bottom = '20px';
-widget.style.right = '20px';
-break;
-}
-}
+  function placePanel() {
+    const r = ui.host.getBoundingClientRect();
+    const down = r.top < window.innerHeight / 2, left = r.left < window.innerWidth / 2;
+    ui.wrap.classList.toggle('down', down); ui.wrap.classList.toggle('up', !down);
+    ui.wrap.classList.toggle('left', left); ui.wrap.classList.toggle('right', !left);
+  }
 
-function injectWidget() {
-const widget = document.createElement('div');
-widget.id = 'stream-archive-finder-widget';
-const toggle = document.createElement('div');
-toggle.className = 'saf-toggle';
-toggle.id = 'safToggle';
-const icon = document.createElement('div');
-icon.className = 'saf-icon';
-icon.textContent = '📚';
-const badge = document.createElement('div');
-badge.className = 'saf-badge';
-badge.id = 'safBadge';
-badge.textContent = '0';
-toggle.appendChild(icon);
-toggle.appendChild(badge);
-const panel = document.createElement('div');
-panel.className = 'saf-panel';
-panel.id = 'safPanel';
-const header = document.createElement('div');
-header.className = 'saf-header';
-header.id = 'safHeader';
-const title = document.createElement('h3');
-title.textContent = t('title');
-title.id = 'safTitle';
-const closeBtn = document.createElement('button');
-closeBtn.className = 'saf-close';
-closeBtn.id = 'safClose';
-closeBtn.textContent = '×';
-header.appendChild(title);
-header.appendChild(closeBtn);
-const modelInfo = document.createElement('div');
-modelInfo.className = 'saf-model-info';
-modelInfo.id = 'safModelInfo';
-modelInfo.style.display = 'none';
-const progressBar = document.createElement('div');
-progressBar.className = 'saf-progress-bar';
-progressBar.id = 'safProgressBar';
-const statusDiv = document.createElement('div');
-statusDiv.className = 'saf-status';
-statusDiv.textContent = t('ready');
-progressBar.appendChild(statusDiv);
-const controls = document.createElement('div');
-controls.className = 'saf-controls';
-const label = document.createElement('label');
-label.className = 'saf-checkbox-label';
-const checkbox = document.createElement('input');
-checkbox.type = 'checkbox';
-checkbox.id = 'safAutoScan';
-checkbox.checked = autoScan;
-const labelSpan = document.createElement('span');
-labelSpan.textContent = t('auto');
-label.appendChild(checkbox);
-label.appendChild(labelSpan);
-const searchBtn = document.createElement('button');
-searchBtn.className = 'saf-search-btn';
-searchBtn.id = 'safSearchBtn';
-searchBtn.textContent = t('searchNow');
-const stopBtn = document.createElement('button');
-stopBtn.className = 'saf-stop-btn';
-stopBtn.id = 'safStopBtn';
-stopBtn.style.display = 'none';
-stopBtn.textContent = t('stop');
-const continueBtn = document.createElement('button');
-continueBtn.className = 'saf-continue-btn';
-continueBtn.id = 'safContinueBtn';
-continueBtn.style.display = 'none';
-continueBtn.textContent = t('continue');
-controls.appendChild(label);
-controls.appendChild(searchBtn);
-controls.appendChild(stopBtn);
-controls.appendChild(continueBtn);
-const content = document.createElement('div');
-content.className = 'saf-content';
-content.id = 'safContent';
-panel.appendChild(header);
-if (lastDetectedModel) {
-updateModelDisplay(lastDetectedModel);
-}
-panel.appendChild(modelInfo);
-panel.appendChild(progressBar);
-panel.appendChild(controls);
-panel.appendChild(content);
-widget.appendChild(toggle);
-widget.appendChild(panel);
-document.body.appendChild(widget);
-chrome.storage.sync.get({ theme: 'dark' }, (items) => {
-if (items.theme === 'dark') {
-document.body.classList.add('dark-theme');
-}
-});
-applyWidgetPosition();
+  function applyPosition() {
+    if (!ui) return;
+    const st = ui.host.style;
+    st.top = st.bottom = st.left = st.right = '';
+    if (savedPos) {
+      st.left = Math.max(0, Math.min(savedPos.left, window.innerWidth - 56)) + 'px';
+      st.top = Math.max(0, Math.min(savedPos.top, window.innerHeight - 56)) + 'px';
+    } else {
+      const p = settings.widgetPosition || 'bottom-right';
+      st[p.startsWith('top') ? 'top' : 'bottom'] = '20px';
+      st[p.endsWith('left') ? 'left' : 'right'] = '20px';
+    }
+    placePanel();
+  }
 
-if (lastDetectedModel) {
-updateModelDisplay(lastDetectedModel);
-}
+  function makeDraggable(handle, onClick) {
+    let sx, sy, ox, oy, moved, active = false;
+    handle.addEventListener('pointerdown', (e) => {
+      if (e.target.closest('button') && handle !== e.target) return;
+      active = true; moved = false; sx = e.clientX; sy = e.clientY;
+      const r = ui.host.getBoundingClientRect(); ox = r.left; oy = r.top;
+      handle.setPointerCapture(e.pointerId);
+    });
+    handle.addEventListener('pointermove', (e) => {
+      if (!active) return;
+      const dx = e.clientX - sx, dy = e.clientY - sy;
+      if (!moved && Math.hypot(dx, dy) < 5) return;
+      moved = true;
+      const st = ui.host.style;
+      st.right = st.bottom = '';
+      st.left = Math.max(0, Math.min(ox + dx, window.innerWidth - 56)) + 'px';
+      st.top = Math.max(0, Math.min(oy + dy, window.innerHeight - 56)) + 'px';
+      placePanel();
+    });
+    handle.addEventListener('pointerup', () => {
+      if (!active) return;
+      active = false;
+      if (moved) {
+        const r = ui.host.getBoundingClientRect();
+        savedPos = { left: r.left, top: r.top };
+        chrome.storage.local.set({ safPos: savedPos });
+      } else if (onClick) onClick();
+    });
+  }
 
-let isDragging = false;
-let dragOffsetX = 0;
-let dragOffsetY = 0;
-panel.addEventListener('mousedown', (e) => {
-if (e.target.tagName === 'BUTTON' ||
-e.target.tagName === 'INPUT' ||
-e.target.tagName === 'A' ||
-e.target.id === 'safClose' ||
-e.target.closest('.saf-controls') ||
-e.target.closest('.saf-content') ||
-e.target.closest('.saf-link')) {
-return;
-}
-isDragging = true;
-const rect = panel.getBoundingClientRect();
-dragOffsetX = e.clientX - rect.left;
-dragOffsetY = e.clientY - rect.top;
-panel.style.position = 'fixed';
-panel.style.cursor = 'move';
-e.preventDefault();
-});
-document.addEventListener('mousemove', (e) => {
-if (!isDragging) return;
-let newX = e.clientX - dragOffsetX;
-let newY = e.clientY - dragOffsetY;
-const panelRect = panel.getBoundingClientRect();
-const maxX = window.innerWidth - 100;
-const maxY = window.innerHeight - 100;
-newX = Math.max(0, Math.min(newX, maxX));
-newY = Math.max(0, Math.min(newY, maxY));
-panel.style.left = newX + 'px';
-panel.style.top = newY + 'px';
-panel.style.right = 'auto';
-panel.style.bottom = 'auto';
-});
-document.addEventListener('mouseup', () => {
-if (isDragging) {
-isDragging = false;
-panel.style.cursor = 'default';
-}
-});
+  /* ---------- отрисовка по состоянию ---------- */
+  const countSites = (st) => (st && st.results ? Object.keys(st.results).length : 0);
+  const countLinks = (st) => (st && st.results ? Object.values(st.results).reduce((n, a) => n + a.length, 0) : 0);
 
-toggle.addEventListener('click', () => {
-panel.classList.toggle('saf-open');
-});
-closeBtn.addEventListener('click', () => {
-panel.classList.remove('saf-open');
-});
-checkbox.addEventListener('change', (e) => {
-autoScan = e.target.checked;
-chrome.storage.sync.set({ autoScan: autoScan });
-console.log('[SAF] autoScan changed to:', autoScan);
-if (autoScan && isStreamDetected && !searchStarted) {
-const modelNick = extractModelNick();
-if (modelNick) {
-searchStarted = true;
-startSearch(modelNick);
-}
-}
-});
-searchBtn.addEventListener('click', () => {
-const modelNick = extractModelNick();
-if (modelNick) {
-searchStarted = true;
-startSearch(modelNick);
-} else {
-updateWidgetStatus(t('noNick'));
-}
-});
-stopBtn.addEventListener('click', () => {
-chrome.runtime.sendMessage({ type: 'STOP_SEARCH' });
-isSearching = false;
-isPaused = false;
-updateControlButtons();
-updateWidgetStatus(t('stopped'));
-});
-continueBtn.addEventListener('click', () => {
-console.log('[SAF] Continue button clicked');
-if (autoScan) {
-autoScan = false;
-const checkbox = document.getElementById('safAutoScan');
-if (checkbox) {
-checkbox.checked = false;
-}
-chrome.storage.sync.set({ autoScan: false });
-}
-try {
-chrome.runtime.sendMessage({ type: 'CONTINUE_SEARCH' });
-} catch(e) {
-console.error('[SAF] Extension context invalidated:', e);
-}
-isPaused = false;
-isSearching = true;
-updateControlButtons();
-updateWidgetStatus(t('continuing'));
-});
+  function statusText(st) {
+    if (!st) return T('ready');
+    switch (st.phase) {
+      case 'running': return T('running', { i: Math.min((st.index || 0) + 1, st.total || 1), n: st.total || '…', site: st.current || '' });
+      case 'paused': return T('paused', { site: st.foundSite || '' });
+      case 'blocked': return T('blocked', { engine: st.engineName || '' });
+      case 'stopped': return T('stopped');
+      case 'error': return T(st.errorKey || 'error');
+      case 'done': {
+        let s = countSites(st) ? T('doneFound', { n: countSites(st) }) : T('notFound');
+        if (st.fromCache) s += ' ' + T('cache', { min: Math.max(0, Math.round((Date.now() - st.cachedAt) / 60000)) });
+        if (st.errors) s += ' · ' + T('errorsNote', { n: st.errors });
+        return s;
+      }
+      default: return T('ready');
+    }
+  }
 
-chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-if (msg.type === 'SEARCH_UPDATE') {
-updateWidget(msg.data);
-}
-if (msg.type === 'PLUGIN_STATE_CHANGED') {
-pluginEnabled = msg.data.pluginEnabled;
-if (!pluginEnabled) {
-widget.remove();
-widgetInjected = false;
-if (checkIntervalId) {
-clearInterval(checkIntervalId);
-checkIntervalId = null;
-}
-}
-}
-});
+  function setStatusOnly(text) { if (ui) ui.status.textContent = text; }
 
-chrome.storage.onChanged.addListener((changes, area) => {
-if (area === 'sync' && changes.theme) {
-if (changes.theme.newValue === 'dark') {
-document.body.classList.add('dark-theme');
-} else {
-document.body.classList.remove('dark-theme');
-}
-}
-});
-}
+  function render() {
+    if (!ui) return;
+    const st = viewState;
+    const phase = st ? st.phase : 'idle';
+    const dark = settings.theme === 'dark' || (settings.theme === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches);
+    ui.wrap.classList.toggle('dark', dark);
 
-function updateControlButtons() {
-const searchBtn = document.getElementById('safSearchBtn');
-const stopBtn = document.getElementById('safStopBtn');
-const continueBtn = document.getElementById('safContinueBtn');
-if (searchBtn) searchBtn.style.display = (!isSearching && !isPaused) ? 'inline-block' : 'none';
-if (stopBtn) stopBtn.style.display = (isSearching && !isPaused) ? 'inline-block' : 'none';
-if (continueBtn) continueBtn.style.display = isPaused ? 'inline-block' : 'none';
-}
+    ui.title.textContent = T('title');
+    ui.nick.placeholder = T('nickPh');
+    ui.go.textContent = T('search');
+    ui.stop.textContent = T('stop');
+    ui.cont.textContent = phase === 'paused' ? T('continue') : T('retry');
+    ui.autoText.textContent = T('auto');
+    ui.auto.checked = !!settings.autoScan;
+    ui.status.textContent = statusText(st);
 
-function updateWidgetStatus(status) {
-const progressBar = document.getElementById('safProgressBar');
-if (progressBar) {
-progressBar.innerHTML = '';
-const div = document.createElement('div');
-div.className = 'saf-status';
-div.textContent = status;
-progressBar.appendChild(div);
-}
-}
+    ui.go.classList.toggle('hide', phase === 'running');
+    ui.stop.classList.toggle('hide', phase !== 'running');
+    ui.cont.classList.toggle('hide', !(phase === 'paused' || phase === 'blocked' || phase === 'stopped'));
+    const pct = st && st.total ? Math.round(((phase === 'done' ? st.total : st.index || 0) / st.total) * 100) : 0;
+    ui.fill.style.width = pct + '%';
 
-function updateModelDisplay(model) {
-const title = document.getElementById('safTitle');
-if (!title) return;
-title.textContent = '';
-title.appendChild(document.createTextNode(t('title') + ' — '));
-if (model) {
-const span = document.createElement('span');
-span.style.cssText = 'color: #e91e63; font-weight: 600; -webkit-text-stroke: 0.5px black; text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;';
-span.textContent = model;
-title.appendChild(span);
-}
-}
+    const n = countLinks(st);
+    ui.badge.textContent = n;
+    ui.badge.classList.toggle('found', n > 0);
 
-function updateWidget(data) {
-const progressBar = document.getElementById('safProgressBar');
-const content = document.getElementById('safContent');
-const badge = document.getElementById('safBadge');
-if (!progressBar || !content) return;
+    /* результаты */
+    ui.body.textContent = '';
+    if (!st || !st.model) return;
+    if (phase === 'blocked') {
+      ui.body.appendChild(h('div', { class: 'warn' }, h('div', { text: T('blockedHelp') }), link(st.blockedUrl || '', T('openSearch'))));
+    }
+    if (n || phase === 'done') ui.body.appendChild(h('div', { class: 'rf', text: T('resultsFor', { model: st.model }) }));
+    for (const [site, items] of Object.entries(st.results || {})) {
+      const sec = h('div', { class: 'sec' }, h('strong', { text: '📁 ' + site }));
+      items.forEach((it) => { const a = link(it.url, it.title, 'l'); if (a) sec.appendChild(a); });
+      ui.body.appendChild(sec);
+    }
+    if (phase === 'done' && !n && st.stats) {
+      ui.body.appendChild(h('div', { class: 'rf', text: T('debug', { engine: st.stats.engine, raw: st.stats.raw, req: st.stats.req }) }));
+    }
+  }
 
-if (data.status) {
-progressBar.innerHTML = '';
-const div = document.createElement('div');
-div.className = 'saf-status';
-div.textContent = data.status;
-progressBar.appendChild(div);
-}
+  /* ---------- события расширения ---------- */
+  chrome.runtime.onMessage.addListener((msg) => {
+    if (msg && msg.type === 'SAF_STATE' && msg.state && ui && S.norm(msg.state.model) === S.norm(ui.nick.value || currentNick)) {
+      viewState = msg.state;
+      render();
+    }
+  });
 
-if (data.results) {
-content.innerHTML = '';
-let totalCount = 0;
-for (const [source, items] of Object.entries(data.results)) {
-if (items.length > 0) {
-const section = document.createElement('div');
-section.className = 'saf-section';
-const strong = document.createElement('strong');
-strong.textContent = ' ' + source;
-section.appendChild(strong);
-items.forEach(item => {
-const link = createSafeLink(item.url, item.title);
-section.appendChild(link);
-totalCount++;
-});
-content.appendChild(section);
-}
-}
-if (totalCount > 0) {
-badge.textContent = totalCount;
-badge.classList.add('saf-found');
-} else if (data.completed) {
-const div = document.createElement('div');
-div.className = 'saf-status';
-div.textContent = t('notFound');
-content.appendChild(div);
-}
-}
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (!alive()) return;
+    if (area === 'sync') {
+      const prevPos = settings.widgetPosition;
+      for (const k of Object.keys(changes)) settings[k] = changes[k].newValue;
+      if (changes.widgetPosition && changes.widgetPosition.newValue !== prevPos) {
+        savedPos = null; chrome.storage.local.remove('safPos'); applyPosition();
+      }
+      if (changes.autoScan && changes.autoScan.newValue && currentNick && !viewState) scheduleAuto(currentNick);
+      tick(); render();
+    }
+  });
 
-if (data.paused) {
-isPaused = true;
-isSearching = false;
-updateControlButtons();
-}
-
-if (data.completed && !data.paused) {
-isSearching = false;
-isPaused = false;
-updateControlButtons();
-}
-}
-
-document.addEventListener('visibilitychange', () => {
-if (document.hidden) {
-totalActiveTime += Date.now() - activeSince;
-} else {
-activeSince = Date.now();
-}
-});
-
-init();
+  chrome.storage.sync.get(S.DEFAULTS, (items) => {
+    settings = items;
+    tick();
+    tickTimer = setInterval(tick, 1000);
+  });
 })();

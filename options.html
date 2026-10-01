@@ -4,81 +4,90 @@
 <meta charset="UTF-8">
 <title>Settings</title>
 <style>
-body { font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
-body.dark { background: #1a1a2e; color: #e0e0e0; }
-h1 { color: #667eea; }
-body.dark h1 { color: #7c8cf5; }
-.option-group { margin-bottom: 20px; }
-label { display: block; margin-bottom: 5px; font-weight: bold; }
-input[type="text"], textarea, select { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
-body.dark input[type="text"], body.dark textarea, body.dark select { background: #16213e; color: #e0e0e0; border-color: #2a2a4a; }
-textarea { height: 100px; }
-button { padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 4px; cursor: pointer; }
-button:hover { background: #5568d3; }
-#statusMsg { margin-left: 10px; color: #2ed573; }
-.help { font-size: 12px; color: #666; margin-top: 5px; }
-body.dark .help { color: #a0a0a0; }
+  :root { --bg:#f6f7fb; --card:#fff; --fg:#222; --muted:#6b7080; --line:#dcdfe8; --accent:#667eea; --field:#fff; }
+  body.dark { --bg:#1a1a2e; --card:#16213e; --fg:#e8e8f0; --muted:#9aa0b8; --line:#2a2a4a; --accent:#7c8cf5; --field:#0f3460; }
+  body { margin:0; padding:24px; background:var(--bg); color:var(--fg); font-family:-apple-system,"Segoe UI",Roboto,Arial,sans-serif; line-height:1.45; }
+  .page { max-width:760px; margin:0 auto; }
+  h1 { color:var(--accent); margin:0 0 16px; }
+  section { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:16px 18px; margin-bottom:16px; }
+  h2 { font-size:15px; margin:0 0 12px; color:var(--accent); }
+  .f { margin-bottom:14px; } .f:last-child { margin-bottom:0; }
+  .f > label, .f > .lbl { display:block; font-weight:600; font-size:14px; margin-bottom:4px; }
+  .check { display:flex; gap:8px; align-items:center; font-weight:600; font-size:14px; }
+  .hint { color:var(--muted); font-size:12.5px; margin-top:3px; }
+  select, input[type=text], textarea { width:100%; box-sizing:border-box; padding:8px; border:1px solid var(--line); border-radius:6px; background:var(--field); color:var(--fg); font:inherit; }
+  textarea { height:140px; font-family:Consolas,monospace; font-size:13px; }
+  .inline { display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; }
+  .inline > div { flex:1; min-width:180px; }
+  button { padding:8px 14px; border:0; border-radius:6px; background:var(--accent); color:#fff; cursor:pointer; font:inherit; font-size:13px; font-weight:600; }
+  button.sec2 { background:transparent; color:var(--accent); border:1px solid var(--accent); }
+  #toast { position:fixed; right:20px; bottom:20px; background:#2ed573; color:#fff; padding:8px 14px; border-radius:6px; font-weight:700; opacity:0; transition:opacity .25s; pointer-events:none; }
+  #toast.show { opacity:1; }
+  pre { background:var(--field); border:1px solid var(--line); border-radius:6px; padding:10px; overflow:auto; font-size:12px; max-height:360px; white-space:pre-wrap; word-break:break-all; }
 </style>
 </head>
 <body>
-<h1 data-en="Settings" data-ru="Настройки">Settings</h1>
+<div class="page">
+  <h1 data-i18n="o_title"></h1>
 
-<div class="option-group">
-<label data-en="Appearance" data-ru="Внешний вид">Appearance</label>
-<label data-en="Language" data-ru="Язык">Language</label>
-<select id="languageSelect">
-<option value="en">English</option>
-<option value="ru">Русский</option>
-</select>
-<label data-en="Theme" data-ru="Тема">Theme</label>
-<select id="themeSelect">
-<option value="light">☀️ Light / Светлая</option>
-<option value="dark">🌙 Dark / Тёмная</option>
-</select>
+  <section>
+    <h2 data-i18n="o_appearance"></h2>
+    <div class="inline">
+      <div class="f"><label for="language" data-i18n="o_language"></label><select id="language"><option value="en">English</option><option value="ru">Русский</option></select></div>
+      <div class="f"><label for="theme" data-i18n="o_theme"></label><select id="theme"></select></div>
+      <div class="f"><label for="widgetPosition" data-i18n="o_position"></label><select id="widgetPosition"></select></div>
+    </div>
+    <div class="hint" data-i18n="o_position_h"></div>
+  </section>
+
+  <section>
+    <h2 data-i18n="o_sites"></h2>
+    <div class="f"><label for="streamHosts" data-i18n="o_streamHosts"></label><textarea id="streamHosts"></textarea><div class="hint" data-i18n="o_streamHosts_h"></div></div>
+    <div class="f"><label for="archiveSites" data-i18n="o_archiveSites"></label><textarea id="archiveSites"></textarea><div class="hint" data-i18n="o_archiveSites_h"></div></div>
+    <button class="sec2" id="resetSites" data-i18n="o_resetSites"></button>
+  </section>
+
+  <section>
+    <h2 data-i18n="o_search"></h2>
+    <div class="inline">
+      <div class="f"><label for="requestDelay" data-i18n="o_requestDelay"></label><select id="requestDelay"></select><div class="hint" data-i18n="o_requestDelay_h"></div></div>
+      <div class="f"><label for="cacheMinutes" data-i18n="o_cache"></label><select id="cacheMinutes"></select><div class="hint" data-i18n="o_cache_h"></div></div>
+    </div>
+    <div class="f"><label class="check"><input type="checkbox" id="strictMatch"><span data-i18n="o_strictMatch"></span></label><div class="hint" data-i18n="o_strictMatch_h"></div></div>
+    <div class="f"><label for="engine" data-i18n="o_engine"></label><select id="engine"></select><div class="hint" data-i18n="o_engine_h"></div></div>
+  </section>
+
+  <section>
+    <h2 data-i18n="o_behavior"></h2>
+    <div class="f"><label class="check"><input type="checkbox" id="detectAnyStream"><span data-i18n="o_detectAny"></span></label><div class="hint" data-i18n="o_detectAny_h"></div></div>
+    <div class="f"><label class="check"><input type="checkbox" id="pauseOnFound"><span data-i18n="o_pause"></span></label><div class="hint" data-i18n="o_pause_h"></div></div>
+    <div class="f"><label class="check"><input type="checkbox" id="autoScan"><span data-i18n="o_autoScan"></span></label><div class="hint" data-i18n="o_autoScan_h"></div></div>
+    <div class="f"><label for="searchDelay" data-i18n="o_delay"></label><select id="searchDelay"></select><div class="hint" data-i18n="o_delay_h"></div></div>
+  </section>
+
+  <section>
+    <h2 data-i18n="o_data"></h2>
+    <button class="sec2" id="exportBtn" data-i18n="o_export"></button>
+    <button class="sec2" id="importBtn" data-i18n="o_import"></button>
+    <input type="file" id="importFile" accept="application/json" style="display:none">
+  </section>
+
+  <section>
+    <div class="f"><label class="check"><input type="checkbox" id="testMode"><span data-i18n="o_test"></span></label><div class="hint" data-i18n="o_test_h"></div></div>
+    <div id="diagBox" style="display:none">
+      <h2 data-i18n="o_diag"></h2>
+      <div class="hint" data-i18n="o_diag_h" style="margin:0 0 10px"></div>
+      <div class="inline">
+        <div class="f"><label for="diagNick" data-i18n="o_diagNick"></label><input type="text" id="diagNick" placeholder="sweet_anna"></div>
+        <div class="f"><label for="diagSite" data-i18n="o_diagSite"></label><select id="diagSite"></select></div>
+        <div class="f"><button id="diagRun" data-i18n="o_run"></button></div>
+      </div>
+      <pre id="diagOut" style="display:none"></pre>
+    </div>
+  </section>
 </div>
-
-<div class="option-group">
-<label data-en="Sites" data-ru="Сайты">Sites</label>
-<label data-en="Stream Hosts" data-ru="Хосты стримов">Stream Hosts</label>
-<input type="text" id="streamHosts" placeholder="bongacams.com, chaturbate.com">
-<div class="help" data-help-en="Comma-separated list of streaming sites to monitor" data-help-ru="Список стриминговых сайтов через запятую"></div>
-<label data-en="Archive Sites" data-ru="Архивные сайты">Archive Sites</label>
-<textarea id="archiveSites" placeholder="striptube.cc&#10;showcamrips.com"></textarea>
-<div class="help" data-help-en="One archive site per line" data-help-ru="Один архивный сайт на строку"></div>
-</div>
-
-<div class="option-group">
-<label data-en="Behavior" data-ru="Поведение">Behavior</label>
-<label><input type="checkbox" id="detectAnyStream"> <span data-en="Detect any stream" data-ru="Определять любой стрим">Detect any stream</span></label>
-<div class="help" data-help-en="Detect streams on sites not in the list by page content" data-help-ru="Определять стримы на сайтах не из списка по содержимому страницы"></div>
-<label><input type="checkbox" id="pauseOnFound"> <span data-en="Pause on found" data-ru="Пауза при находке">Pause on found</span></label>
-<div class="help" data-help-en="Pause search after first result found" data-help-ru="Остановить поиск после первой находки"></div>
-<label><input type="checkbox" id="autoScan"> <span data-en="Auto-scan" data-ru="Автосканирование">Auto-scan</span></label>
-<div class="help" data-help-en="Automatically start search when stream is detected" data-help-ru="Автоматически запускать поиск при обнаружении стрима"></div>
-
-<label data-en="Search delay (auto-scan)" data-ru="Задержка поиска (автоскан)">Search delay (auto-scan)</label>
-<select id="searchDelay">
-<option value="1000">1 second / 1 секунда</option>
-<option value="2000">2 seconds / 2 секунды</option>
-<option value="3000" selected>3 seconds / 3 секунды</option>
-</select>
-<div class="help" data-help-en="Delay before starting auto-search after stream detection" data-help-ru="Задержка перед началом автопоиска после обнаружения стрима"></div>
-</div>
-
-<div class="option-group">
-<label data-en="Position" data-ru="Позиция">Position</label>
-<label data-en="Widget position" data-ru="Позиция виджета">Widget position</label>
-<select id="widgetPosition">
-<option value="top-left">↖️ Top Left / Сверху слева</option>
-<option value="top-right">️ Top Right / Сверху справа</option>
-<option value="bottom-left">↙️ Bottom Left / Снизу слева</option>
-<option value="bottom-right">↘️ Bottom Right / Снизу справа</option>
-</select>
-<div class="help" data-help-en="Where the widget appears on the page" data-help-ru="Где виджет появляется на странице"></div>
-</div>
-
-<button id="saveBtn" data-en="Save" data-ru="Сохранить">Save</button>
-<span id="statusMsg"></span>
+<div id="toast"></div>
+<script src="shared.js"></script>
 <script src="options.js"></script>
 </body>
 </html>

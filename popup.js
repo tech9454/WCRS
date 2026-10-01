@@ -1,43 +1,21 @@
-const translations = {
-    en: { active: 'Active', disabled: 'Disabled', enabled: 'Plugin enabled', settings: '⚙️ Settings' },
-    ru: { active: 'Активен', disabled: 'Отключён', enabled: 'Плагин включён', settings: '⚙️ Настройки' }
-};
-let currentLang = 'en';
+const $ = (id) => document.getElementById(id);
+let cfg = SAF.DEFAULTS;
+const T = (k) => SAF.t(cfg.language, k);
 
-function t(key) {
-    return translations[currentLang][key] || translations['en'][key];
+function paint() {
+  const dark = cfg.theme === 'dark' || (cfg.theme === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches);
+  document.body.classList.toggle('dark', dark);
+  $('ver').textContent = 'v' + chrome.runtime.getManifest().version;
+  $('statusText').textContent = cfg.pluginEnabled ? T('active') : T('disabled');
+  $('dot').className = 'dot' + (cfg.pluginEnabled ? '' : ' off');
+  $('toggleLabel').textContent = T('enabled');
+  $('settingsLink').textContent = T('settings');
+  $('toggle').checked = cfg.pluginEnabled;
 }
 
-const toggle = document.getElementById('pluginToggle');
-const statusText = document.getElementById('statusText');
-const statusDot = document.getElementById('statusDot');
-const toggleLabel = document.getElementById('toggleLabel');
-const settingsLink = document.getElementById('settingsLink'); 
-
-function updateUI(enabled) {
-    statusText.textContent = enabled ? t('active') : t('disabled');
-    statusDot.className = 'status-dot' + (enabled ? '' : ' off');
-    toggleLabel.textContent = t('enabled');
-    if (settingsLink) settingsLink.textContent = t('settings');
-}
-
-chrome.storage.sync.get({ pluginEnabled: true, language: 'en' }, (items) => {
-    currentLang = items.language || 'en';
-    toggle.checked = items.pluginEnabled;
-    updateUI(items.pluginEnabled);
+chrome.storage.sync.get(SAF.DEFAULTS, (items) => { cfg = items; paint(); });
+$('toggle').addEventListener('change', (e) => {
+  cfg.pluginEnabled = e.target.checked;
+  chrome.storage.sync.set({ pluginEnabled: cfg.pluginEnabled }, paint);
 });
-
-toggle.addEventListener('change', () => {
-    const enabled = toggle.checked;
-    chrome.storage.sync.set({ pluginEnabled: enabled }, () => {
-        updateUI(enabled);
-        chrome.runtime.sendMessage({ type: 'PLUGIN_STATE_CHANGED', data: { pluginEnabled: enabled } });
-    });
-});
-
-if (settingsLink) {
-    settingsLink.addEventListener('click', (e) => {
-        e.preventDefault();
-        chrome.runtime.openOptionsPage(); 
-    });
-}
+$('settingsLink').addEventListener('click', (e) => { e.preventDefault(); chrome.runtime.openOptionsPage(); });
