@@ -36,6 +36,7 @@
   let ui = null;           // ссылки на элементы виджета
   let panelOpen = false;
   let savedPos = null;     // {left, top} после перетаскивания
+  let scale = 1;           // масштаб карточки (шрифты растут вместе с ней)
 
   const T = (k, v) => S.t(settings.language, k, v);
   const alive = () => { try { return !!chrome.runtime.id; } catch (_) { return false; } };
@@ -116,33 +117,52 @@
     --bg:#fff;--fg:#222;--muted:#666;--card:#f3f4f8;--line:#e3e5ee;--accent:#667eea}
   .wrap.dark{--bg:#16213e;--fg:#e8e8f0;--muted:#9aa0b8;--card:#0f3460;--line:#2a2a4a;--accent:#7c8cf5}
   .fab{width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,#667eea,#764ba2);display:flex;align-items:center;justify-content:center;
-    font-size:26px;cursor:pointer;box-shadow:0 4px 15px rgba(0,0,0,.35);user-select:none;position:relative;touch-action:none}
+    font-size:26px;cursor:pointer;box-shadow:0 4px 15px rgba(0,0,0,.35);user-select:none;position:relative;touch-action:none;transition:transform .15s,box-shadow .15s}
+  .fab:hover{transform:scale(1.08);box-shadow:0 6px 20px rgba(102,126,234,.55)}
+  .wrap.dragging .fab{transform:scale(1.05);cursor:grabbing}
   .badge{position:absolute;top:-4px;right:-4px;min-width:22px;height:22px;padding:0 5px;border-radius:11px;background:#ff4757;color:#fff;
     font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;border:2px solid #fff}
-  .badge.found{background:#2ed573}
-  .panel{display:none;position:absolute;width:360px;max-width:calc(100vw - 24px);max-height:calc(100vh - 100px);background:var(--bg);color:var(--fg);
-    border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.4);overflow:hidden;flex-direction:column;font-size:13px}
-  .panel.open{display:flex}
+  .badge.found{background:#2ed573;animation:pulse 2s infinite}
+  @keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.12)}}
+  @keyframes pop{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:none}}
+  /* .panel — невидимая обёртка (позиция), .card — сама карточка; масштаб --s меняет размер карточки вместе со шрифтами */
+  .panel{display:none;position:absolute;--s:1}
+  .panel.open{display:block}
   .wrap.up .panel{bottom:66px}.wrap.down .panel{top:66px}.wrap.right .panel{right:0}.wrap.left .panel{left:0}
-  .head{background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;cursor:move;touch-action:none;user-select:none}
+  .card{zoom:var(--s);position:relative;width:360px;display:flex;flex-direction:column;background:var(--bg);color:var(--fg);
+    border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.4);overflow:hidden;font-size:13px}
+  .panel.open .card{animation:pop .16s ease-out}
+  .wrap.up.right .card{transform-origin:bottom right}.wrap.up.left .card{transform-origin:bottom left}
+  .wrap.down.right .card{transform-origin:top right}.wrap.down.left .card{transform-origin:top left}
+  .wrap.dragging .card{animation:none}
+  .head{background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;cursor:grab;touch-action:none;user-select:none}
   .head b{font-size:14px}
-  .x{background:none;border:0;color:#fff;font-size:22px;cursor:pointer;line-height:1;padding:0 4px}
+  .x{background:none;border:0;color:#fff;font-size:22px;cursor:pointer;line-height:1;padding:0 4px;opacity:.85}.x:hover{opacity:1}
   .row{display:flex;gap:6px;padding:10px 12px 0;align-items:center}
   input.nick{flex:1;min-width:0;padding:7px 9px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--fg);font-size:13px}
-  button.b{padding:7px 12px;border:0;border-radius:6px;color:#fff;cursor:pointer;font-size:12px;font-weight:600;background:var(--accent)}
+  input.nick:focus{outline:2px solid var(--accent);outline-offset:-1px}
+  button.b{padding:7px 12px;border:0;border-radius:6px;color:#fff;cursor:pointer;font-size:12px;font-weight:600;background:var(--accent);transition:filter .15s}
+  button.b:hover{filter:brightness(1.12)}
   button.b.stop{background:#dc3545}button.b.go2{background:#28a745}
   .prog{margin:10px 12px 0;height:5px;border-radius:3px;background:var(--line);overflow:hidden}
-  .fill{height:100%;width:0;background:var(--accent);transition:width .25s}
+  .fill{height:100%;width:0;background:linear-gradient(90deg,#667eea,#764ba2);transition:width .25s}
   .status{padding:8px 12px 0;color:var(--muted);font-size:12.5px}
   .ctl{display:flex;gap:6px;align-items:center;padding:8px 12px;border-bottom:1px solid var(--line)}
   .ctl label{display:flex;align-items:center;gap:5px;cursor:pointer;color:var(--fg);font-size:12.5px;margin-right:auto}
-  .body{padding:10px 12px 12px;overflow-y:auto}
+  .body{padding:10px 12px 14px;overflow-y:auto;flex:1;min-height:0;scrollbar-width:thin;scrollbar-color:var(--accent) transparent}
   .rf{color:var(--muted);font-size:12px;margin-bottom:8px}
   .sec{margin-bottom:10px}.sec strong{display:block;color:var(--accent);font-size:12.5px;margin-bottom:4px}
-  a.l{display:block;padding:7px 10px;margin-bottom:5px;background:var(--card);border-left:3px solid var(--accent);border-radius:4px;color:var(--fg);text-decoration:none;font-size:12.5px;word-break:break-word}
-  a.l:hover{filter:brightness(1.12)}
+  a.l{display:block;padding:7px 10px;margin-bottom:5px;background:var(--card);border-left:3px solid var(--accent);border-radius:4px;color:var(--fg);text-decoration:none;font-size:12.5px;word-break:break-word;transition:transform .12s,filter .12s}
+  a.l:hover{filter:brightness(1.12);transform:translateX(2px)}
   .warn{padding:9px 10px;background:rgba(255,71,87,.12);border:1px solid rgba(255,71,87,.5);border-radius:6px;margin-bottom:10px;line-height:1.4}
   .warn a{color:var(--accent);font-weight:700}
+  /* ручка изменения размера — в углу, противоположном кнопке виджета */
+  .rz{position:absolute;width:20px;height:20px;z-index:5;opacity:.75;touch-action:none}.rz:hover{opacity:1}
+  .wrap.up .rz{top:0}.wrap.down .rz{bottom:0}.wrap.right .rz{left:0}.wrap.left .rz{right:0}
+  .wrap.up.right .rz{cursor:nwse-resize;background:linear-gradient(135deg,rgba(255,255,255,.85) 50%,transparent 50%)}
+  .wrap.up.left .rz{cursor:nesw-resize;background:linear-gradient(225deg,rgba(255,255,255,.85) 50%,transparent 50%)}
+  .wrap.down.left .rz{cursor:nwse-resize;background:linear-gradient(315deg,var(--accent) 50%,transparent 50%)}
+  .wrap.down.right .rz{cursor:nesw-resize;background:linear-gradient(45deg,var(--accent) 50%,transparent 50%)}
   .hide{display:none!important}`;
 
   function h(tag, props, ...kids) {
@@ -181,12 +201,14 @@
     const cont = h('button', { class: 'b go2' });
     const ctl = h('div', { class: 'ctl' }, autoLbl, stop, cont);
     const body = h('div', { class: 'body' });
-    const panel = h('div', { class: 'panel' }, head, h('div', { class: 'row' }, nick, go), prog, status, ctl, body);
+    const rz = h('div', { class: 'rz', title: '⤡' });
+    const card = h('div', { class: 'card' }, head, h('div', { class: 'row' }, nick, go), prog, status, ctl, body, rz);
+    const panel = h('div', { class: 'panel' }, card);
     const wrap = h('div', { class: 'wrap' }, fab, panel);
     root.append(style, wrap);
     document.documentElement.appendChild(host);
 
-    ui = { host, wrap, fab, badge, panel, title, close, nick, go, fill: prog.firstChild, status, auto, autoText: autoLbl.lastChild, stop, cont, body };
+    ui = { host, wrap, fab, badge, panel, card, rz, title, close, nick, go, fill: prog.firstChild, status, auto, autoText: autoLbl.lastChild, stop, cont, body };
 
     /* события */
     go.addEventListener('click', () => startSearch(nick.value, true));
@@ -200,9 +222,12 @@
     });
     makeDraggable(fab, () => setOpen(!panelOpen));
     makeDraggable(head, null);
+    makeResizable(rz);
+    window.addEventListener('resize', () => { if (ui) { applyPosition(); applyScale(); } });
 
-    chrome.storage.local.get({ safPos: null }, (o) => { savedPos = o.safPos; applyPosition(); });
+    chrome.storage.local.get({ safPos: null, safScale: 1 }, (o) => { savedPos = o.safPos; scale = o.safScale || 1; applyPosition(); applyScale(); });
     applyPosition();
+    applyScale();
     render();
   }
 
@@ -234,6 +259,37 @@
     placePanel();
   }
 
+
+  function applyScale() {
+    if (!ui) return;
+    const maxS = Math.max(0.7, (window.innerWidth - 24) / 360);
+    scale = Math.max(0.7, Math.min(scale || 1, 2.4, maxS));
+    ui.panel.style.setProperty('--s', String(scale));
+    ui.card.style.maxHeight = Math.max(160, (window.innerHeight - 100) / scale) + 'px';
+  }
+
+  // Растягивание за угол: масштаб меняется пропорционально, шрифты растут вместе с карточкой. Двойной клик — сброс.
+  function makeResizable(handle) {
+    let a = null;
+    handle.addEventListener('pointerdown', (e) => {
+      const r = ui.card.getBoundingClientRect();
+      a = { x: e.clientX, y: e.clientY, w: r.width || 1, h: r.height || 1, s: scale,
+            gx: ui.wrap.classList.contains('right') ? -1 : 1,   // карточка прижата справа — растёт влево
+            gy: ui.wrap.classList.contains('up') ? -1 : 1 };    // раскрыта вверх — растёт вверх
+      handle.setPointerCapture(e.pointerId);
+      e.preventDefault(); e.stopPropagation();
+    });
+    handle.addEventListener('pointermove', (e) => {
+      if (!a) return;
+      const sx = (a.w + (e.clientX - a.x) * a.gx) / a.w;
+      const sy = (a.h + (e.clientY - a.y) * a.gy) / a.h;
+      scale = a.s * (Math.abs(sx - 1) > Math.abs(sy - 1) ? sx : sy);
+      applyScale();
+    });
+    handle.addEventListener('pointerup', () => { if (!a) return; a = null; chrome.storage.local.set({ safScale: scale }); });
+    handle.addEventListener('dblclick', () => { scale = 1; applyScale(); chrome.storage.local.set({ safScale: 1 }); });
+  }
+
   function makeDraggable(handle, onClick) {
     let sx, sy, ox, oy, moved, active = false;
     handle.addEventListener('pointerdown', (e) => {
@@ -241,22 +297,25 @@
       active = true; moved = false; sx = e.clientX; sy = e.clientY;
       const r = ui.host.getBoundingClientRect(); ox = r.left; oy = r.top;
       handle.setPointerCapture(e.pointerId);
+      e.preventDefault();
     });
     handle.addEventListener('pointermove', (e) => {
       if (!active) return;
       const dx = e.clientX - sx, dy = e.clientY - sy;
       if (!moved && Math.hypot(dx, dy) < 5) return;
+      if (!moved) ui.wrap.classList.add('dragging');   // пока тащим — сторона раскрытия не меняется
       moved = true;
       const st = ui.host.style;
       st.right = st.bottom = '';
       st.left = Math.max(0, Math.min(ox + dx, window.innerWidth - 56)) + 'px';
       st.top = Math.max(0, Math.min(oy + dy, window.innerHeight - 56)) + 'px';
-      placePanel();
     });
     handle.addEventListener('pointerup', () => {
       if (!active) return;
       active = false;
+      ui.wrap.classList.remove('dragging');
       if (moved) {
+        placePanel();                                   // сторону пересчитываем один раз — когда отпустили
         const r = ui.host.getBoundingClientRect();
         savedPos = { left: r.left, top: r.top };
         chrome.storage.local.set({ safPos: savedPos });

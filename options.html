@@ -14,6 +14,7 @@
   .f { margin-bottom:14px; } .f:last-child { margin-bottom:0; }
   .f > label, .f > .lbl { display:block; font-weight:600; font-size:14px; margin-bottom:4px; }
   .check { display:flex; gap:8px; align-items:center; font-weight:600; font-size:14px; }
+  .warn-o { color:darkorange; font-weight:700; font-size:13.5px; margin-bottom:6px; }
   .hint { color:var(--muted); font-size:12.5px; margin-top:3px; }
   select, input[type=text], textarea { width:100%; box-sizing:border-box; padding:8px; border:1px solid var(--line); border-radius:6px; background:var(--field); color:var(--fg); font:inherit; }
   textarea { height:140px; font-family:Consolas,monospace; font-size:13px; }
@@ -54,7 +55,7 @@
       <div class="f"><label for="cacheMinutes" data-i18n="o_cache"></label><select id="cacheMinutes"></select><div class="hint" data-i18n="o_cache_h"></div></div>
     </div>
     <div class="f"><label class="check"><input type="checkbox" id="strictMatch"><span data-i18n="o_strictMatch"></span></label><div class="hint" data-i18n="o_strictMatch_h"></div></div>
-    <div class="f"><label for="engine" data-i18n="o_engine"></label><select id="engine"></select><div class="hint" data-i18n="o_engine_h"></div></div>
+    <div class="f"><div class="warn-o" data-i18n="o_engine_warn"></div><label for="engine" data-i18n="o_engine"></label><select id="engine"></select><div class="hint" data-i18n="o_engine_h"></div></div>
   </section>
 
   <section>

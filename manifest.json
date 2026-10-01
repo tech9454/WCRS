@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "WebCam Records Searcher",
-  "version": "4.2.0",
+  "version": "4.3.0",
   "description": "Automatic search for stream recordings on archive sites via a search engine of your choice.",
   "minimum_chrome_version": "102",
   "permissions": ["storage", "tabs"],
