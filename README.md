@@ -39,7 +39,7 @@ Since this extension is not published on the Chrome Web Store, you need to insta
 
 ## Support & Donations
 If you like this extension and want to support its development, you can do so on Boosty:
- **[Insert Your Boosty Link Here]**
+ **https://boosty.to/wcrs**
 
 ## License
 This project is protected by a custom Non-Commercial License. 
